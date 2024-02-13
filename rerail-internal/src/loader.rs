@@ -1,0 +1,170 @@
+use std::cell::RefCell;
+use std::io::BufRead;
+use std::rc::Rc;
+
+use crate::railway_map::{Color, Coord, Railway, RailwayMap, Station};
+
+fn next_i32<T: BufRead>(reader: &mut T) -> std::io::Result<i32> {
+    let mut buf = [0u8; 4];
+    reader.read_exact(&mut buf)?;
+    let res = ((buf[0] as i32) << 24) | ((buf[1] as i32) << 16) | ((buf[2] as i32) << 8) | (buf[3] as i32);
+    Ok(res)
+}
+
+fn next_coord<T: BufRead>(reader: &mut T) -> std::io::Result<Coord> {
+    let x = next_i32(reader)?;
+    let y = next_i32(reader)?;
+    Ok(Coord { x, y })
+}
+
+fn next_u8<T: BufRead>(reader: &mut T) -> std::io::Result<u8> {
+    let mut buf = [0u8; 1];
+    reader.read_exact(&mut buf)?;
+    Ok(buf[0])
+}
+
+fn next_char<T: BufRead>(reader: &mut T) -> std::io::Result<char> {
+    Ok(next_u8(reader)? as char)
+}
+
+fn next_u8_seq<T: BufRead>(reader: &mut T, len: usize) -> std::io::Result<Vec<u8>> {
+    let mut buf = vec![0u8; len];
+    reader.read_exact(&mut buf)?;
+    Ok(buf)
+}
+
+fn next_sjis_string<T: BufRead>(reader: &mut T, len: usize) -> std::io::Result<String> {
+    let buf = next_u8_seq(reader, len)?;
+    let (res, _, _) = encoding_rs::SHIFT_JIS.decode(&buf);
+    Ok(res.into_owned())
+}
+
+fn next_sjis_string_prefixed_with_len<T: BufRead>(reader: &mut T) -> std::io::Result<String> {
+    let len = next_u8(reader)? as usize;
+    next_sjis_string(reader, len)
+}
+
+pub fn load_legacy_railmap_file<T: BufRead>(mut reader: &mut T) -> std::io::Result<RailwayMap> {
+    assert_eq!(next_char(&mut reader)?, 'R');
+    assert_eq!(next_char(&mut reader)?, 'M');
+    assert_eq!(next_char(&mut reader)?, 'M');
+    assert_eq!(next_char(&mut reader)?, 'T');
+
+    let _ = next_i32(&mut reader)?;  // TODO: I don't know what this is
+    let _initial_pos = next_coord(&mut reader)?;
+    let _maybe_zoom_level = next_u8(&mut reader)?;  // TODO: verify this
+
+    assert_eq!(next_char(&mut reader)?, 'S');
+    assert_eq!(next_char(&mut reader)?, 'T');
+
+    let _station_section_size = next_i32(&mut reader)? as usize;
+    let num_stations = next_i32(&mut reader)? as usize;
+
+    let mut stations = vec![];
+
+    for _ in 0..num_stations {
+        let _station_type = next_u8(&mut reader)?;
+        let _station_pos = next_coord(&mut reader)?;
+        let station_name = next_sjis_string_prefixed_with_len(&mut reader)?;
+        stations.push(Rc::new(RefCell::new(Station::new(station_name))));
+    }
+
+    assert_eq!(next_char(&mut reader)?, 'R');
+    assert_eq!(next_char(&mut reader)?, 'X');
+
+    // rail_section_size is wrong because it assumes that each station on a railway takes 12 bytes (actually 16 bytes)
+    let _rail_section_size = next_i32(&mut reader)? as usize;
+    let num_rails = next_i32(&mut reader)? as usize;
+
+    let mut rails = vec![];
+
+    for _ in 0..num_rails {
+        let rail_info = next_i32(&mut reader)?;  // color (3 bytes) + rail type (1 byte) ?
+        let rail_color = Color {
+            r: ((rail_info >> 24) & 255) as u8,
+            g: ((rail_info >> 16) & 255) as u8,
+            b: ((rail_info >> 8) & 255) as u8,
+        };
+        let rail_name = next_sjis_string_prefixed_with_len(&mut reader)?;
+        let num_points = next_i32(&mut reader)? as usize;
+
+        let mut points = vec![];
+        for _ in 0..num_points {
+            points.push(next_coord(&mut reader)?);
+        }
+        let mut associated_stations = vec![None; points.len()];
+
+        let num_rail_stations = next_i32(&mut reader)? as usize;
+        let mut cur_pos = 0;
+        for _ in 0..num_rail_stations {
+            let station_id = next_i32(&mut reader)? as usize;
+            let station_pos = next_coord(&mut reader)?;
+            let _ = next_i32(&mut reader)?;  // TODO: I don't know what this is
+
+            while points[cur_pos] != station_pos {
+                cur_pos += 1;
+            }
+            assert!(associated_stations[cur_pos].is_none());
+            associated_stations[cur_pos] = Some(Rc::downgrade(&stations[station_id]));
+        }
+
+        let railway = Rc::new(RefCell::new(Railway::new(rail_name, rail_color)));
+        for (c, st) in points.into_iter().zip(associated_stations.into_iter()) {
+            if let Some(st) = &st {
+                st.upgrade().unwrap().borrow_mut().add_railway(Rc::downgrade(&railway));
+            }
+            railway.borrow_mut().add_point(c, st);
+        }
+        rails.push(railway);
+    }
+
+    assert_eq!(next_char(&mut reader)?, 'L');
+    assert_eq!(next_char(&mut reader)?, 'S');
+
+    let _rail_entry_section_size = next_i32(&mut reader)? as usize;
+    let num_rail_entries = next_i32(&mut reader)? as usize;
+
+    for _ in 0..num_rail_entries {
+        let kind = next_u8(&mut reader)?;
+
+        if kind == 0 {
+            let _rail_id = next_i32(&mut reader)? as usize;
+            // println!("{}", rails[rail_id]);
+        } else if kind == 1 {
+            let _group_name = next_sjis_string_prefixed_with_len(&mut reader)?;
+            // println!("[{}]", group_name);
+        } else if kind == 2 {
+            // separator
+        } else {
+            panic!();
+        }
+    }
+
+    assert_eq!(next_char(&mut reader)?, 'B');
+    assert_eq!(next_char(&mut reader)?, 'D');
+
+    // border_section_size is wrong because it is computed assuming that an edge appears exactly once
+    // in the graph, but in reality it appears twice (confusion between directed / undirected graphs)
+    let _border_section_size = next_i32(&mut reader)? as usize;  // TODO: I don't know what this is
+    let num_border_points = next_i32(&mut reader)? as usize;
+
+    for _ in 0..num_border_points {
+        let _point_level = next_u8(&mut reader)?;
+        let _point_coord = next_coord(&mut reader)?;
+        let num_edges = next_u8(&mut reader)? as usize;
+
+        for _ in 0..num_edges {
+            let _adj_point = next_i32(&mut reader)? as usize;
+        }
+    }
+
+    let mut rail_map = RailwayMap::new();
+    for station in stations {
+        rail_map.add_station(station);
+    }
+    for railway in rails {
+        rail_map.add_railway(railway);
+    }
+
+    Ok(rail_map)
+}

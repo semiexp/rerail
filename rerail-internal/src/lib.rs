@@ -1,6 +1,4 @@
-use wasm_bindgen::prelude::*;
-
-#[wasm_bindgen]
-pub fn foo(x: i32) -> i32 {
-    x + 42
-}
+mod geom;
+mod loader;
+mod railway_map;
+pub use loader::load_legacy_railmap_file;

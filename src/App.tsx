@@ -7,7 +7,7 @@ type RerailAppState = {
     viewportWidth: number,
     viewportTopX: number,
     viewportTopY: number,
-    viewportZoom: number,
+    viewportZoomLevel: number,
     railwayMap: RailwayMap | null,
 };
 
@@ -17,7 +17,7 @@ function App() {
         viewportWidth: 100,
         viewportTopX: 1000000000,
         viewportTopY: 1000000000,
-        viewportZoom: 50,
+        viewportZoomLevel: 5,
         railwayMap: null,
     });
 
@@ -65,8 +65,8 @@ function App() {
                 width={appState.viewportWidth}
                 topX={appState.viewportTopX}
                 topY={appState.viewportTopY}
-                zoom={appState.viewportZoom}
-                setTopPos={(x, y) => setAppState({...appState, viewportTopX: x, viewportTopY: y})}
+                zoomLevel={appState.viewportZoomLevel}
+                setViewport={(x, y, zoomLevel) => setAppState({...appState, viewportTopX: x, viewportTopY: y, viewportZoomLevel: zoomLevel})}
                 railwayMap={appState.railwayMap}
             />
         </div>

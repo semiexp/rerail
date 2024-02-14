@@ -1,11 +1,13 @@
 import { RenderingInfo } from '../rerail-internal/pkg/rerail_internal'
 
-export function renderMap(ctx: CanvasRenderingContext2D, renderingInfo: RenderingInfo) {
+export function renderMap(ctx: CanvasRenderingContext2D, width: number, height: number, renderingInfo: RenderingInfo) {
     let railColors = renderingInfo.rail_colors;
     let railNumPoints = renderingInfo.rail_points_num;
     let railPointX = renderingInfo.rail_points_x;
     let railPointY = renderingInfo.rail_points_y;
-    console.log(railColors);
+
+    ctx.fillStyle = "white";
+    ctx.fillRect(0, 0, width, height);
 
     let p = 0;
     for (let i = 0; i < railNumPoints.length; ++i) {

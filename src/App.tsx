@@ -1,11 +1,25 @@
-import { ChangeEvent, useRef } from 'react';
+import { ChangeEvent, useState } from 'react';
 import { RailwayMap } from '../rerail-internal/pkg/rerail_internal'
-import { renderMap } from './renderer'
+import { RailwayMapCanvas } from './RailwayMapCanvas'
+
+type RerailAppState = {
+    viewportHeight: number,
+    viewportWidth: number,
+    viewportTopX: number,
+    viewportTopY: number,
+    viewportZoom: number,
+    railwayMap: RailwayMap | null,
+};
 
 function App() {
-    const canvasHeight = 1080;
-    const canvasWidth = 1920;
-    const canvasRef = useRef<HTMLCanvasElement>(null);
+    const [appState, setAppState] = useState<RerailAppState>({
+        viewportHeight: 1080,
+        viewportWidth: 1920,
+        viewportTopX: 1000000000,
+        viewportTopY: 1000000000,
+        viewportZoom: 50,
+        railwayMap: null,
+    });
 
     const fileHandler = (e: ChangeEvent<HTMLInputElement>) => {
         const files = e.currentTarget.files;
@@ -17,13 +31,8 @@ function App() {
         reader.addEventListener("load", () => {
             const res = reader.result as ArrayBuffer;
 
-            const railway_map = RailwayMap.load(new Uint8Array(res));
-            const renderInfo = railway_map.render(1000000000 - 5000, 1000000000 - 5000, 1080, 1920, 50);
-
-            const canvas = canvasRef.current!;
-            const ctx = canvas.getContext("2d")!;
-
-            renderMap(ctx, renderInfo);
+            const railwayMap = RailwayMap.load(new Uint8Array(res));
+            setAppState({...appState, railwayMap})
         });
 
         reader.readAsArrayBuffer(file);
@@ -34,7 +43,15 @@ function App() {
             <input type="file" onChange={fileHandler} />
         </div>
         <div>
-            <canvas height={canvasHeight} width={canvasWidth} ref={canvasRef} />
+            <RailwayMapCanvas
+                height={appState.viewportHeight}
+                width={appState.viewportWidth}
+                topX={appState.viewportTopX}
+                topY={appState.viewportTopY}
+                zoom={appState.viewportZoom}
+                setTopPos={(x, y) => setAppState({...appState, viewportTopX: x, viewportTopY: y})}
+                railwayMap={appState.railwayMap}
+            />
         </div>
     </div>);
 }

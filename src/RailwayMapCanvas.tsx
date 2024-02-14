@@ -67,6 +67,7 @@ export const RailwayMapCanvas = (props: RailwayMapCanvasProps) => {
             onMouseMove={mouseMoveHandler}
             onMouseUp={mouseUpHandler}
             onMouseOut={mouseUpHandler}
+            style={{verticalAlign: "top"}}
         />
     );
 };

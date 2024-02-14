@@ -1,4 +1,4 @@
-import { ChangeEvent, useState } from 'react';
+import { ChangeEvent, useEffect, useRef, useState } from 'react';
 import { RailwayMap } from '../rerail-internal/pkg/rerail_internal'
 import { RailwayMapCanvas } from './RailwayMapCanvas'
 
@@ -13,8 +13,8 @@ type RerailAppState = {
 
 function App() {
     const [appState, setAppState] = useState<RerailAppState>({
-        viewportHeight: 1080,
-        viewportWidth: 1920,
+        viewportHeight: 100,
+        viewportWidth: 100,
         viewportTopX: 1000000000,
         viewportTopY: 1000000000,
         viewportZoom: 50,
@@ -38,11 +38,28 @@ function App() {
         reader.readAsArrayBuffer(file);
     };
 
-    return (<div>
-        <div>
+    const canvasContainerRef = useRef<HTMLDivElement>(null);
+
+    const setSize = () => {
+        const container = canvasContainerRef.current!;
+        const height = container.clientHeight;
+        const width = container.clientWidth;
+
+        setAppState(st => {return {...st, viewportHeight: height, viewportWidth: width}});
+    };
+
+    useEffect(() => {
+        window.addEventListener("resize", () => {
+            setSize();
+        });
+        setSize();
+    }, []);
+
+    return (<div style={{display: "flex", flexDirection: "column", height: "100%", width: "100%", margin: 0, padding: 0, position: "absolute"}}>
+        <div style={{width: "100%"}}>
             <input type="file" onChange={fileHandler} />
         </div>
-        <div>
+        <div style={{flex: 1, height: "100%", width: "100%", minHeight: "100px", overflow: "none"}} ref={canvasContainerRef}>
             <RailwayMapCanvas
                 height={appState.viewportHeight}
                 width={appState.viewportWidth}

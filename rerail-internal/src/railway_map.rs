@@ -104,8 +104,7 @@ impl RailwayMap {
 
             let mut num = 0;
             for i in 1..railway.points.len() {
-                // TODO: ok if the line segment crosses with the viewport
-                if viewport.contains(railway.points[i - 1].coord) && viewport.contains(railway.points[i].coord)  {
+                if viewport.crosses_with_line_segment(railway.points[i - 1].coord, railway.points[i].coord) {
                     num += 2;
 
                     let c0 = railway.points[i - 1].coord;

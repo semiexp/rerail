@@ -18,6 +18,40 @@ pub struct Rect {
     right: i32,
 }
 
+fn normalize_i32_f64(x: i32, y: i32) -> (f64, f64) {
+    let x = x as f64;
+    let y = y as f64;
+    let dist = (x * x + y * y).sqrt();
+    (x / dist, y / dist)
+}
+
+pub fn compute_station_line_segment(prev: Option<Coord>, cur: Coord, next: Option<Coord>, station_length: i32) -> (Coord, Coord) {
+    let (prev_dx, prev_dy, next_dx, next_dy) = match (prev, next) {
+        (Some(prev), Some(next)) => {
+            (cur.x - prev.x, cur.y - prev.y, cur.x - next.x, cur.y - next.y)
+        }
+        (Some(prev), None) => {
+            (cur.x - prev.x, cur.y - prev.y, prev.x - cur.x, prev.y - cur.y)
+        }
+        (None, Some(next)) => {
+            (next.x - cur.x, next.y - cur.y, cur.x - next.x, cur.y - next.y)
+        }
+        (None, None) => panic!(),
+    };
+
+    let (prev_dx_norm, prev_dy_norm) = normalize_i32_f64(prev_dx, prev_dy);
+    let (next_dx_norm, next_dy_norm) = normalize_i32_f64(next_dx, next_dy);
+
+    let dx = next_dx_norm - prev_dx_norm;
+    let dy = next_dy_norm - prev_dy_norm;
+    let d = (dx * dx + dy * dy).sqrt();
+
+    let dx = (dx / d * station_length as f64 * 0.5) as i32;
+    let dy = (dy / d * station_length as f64 * 0.5) as i32;
+
+    (Coord::new(cur.x - dx, cur.y - dy), Coord::new(cur.x + dx, cur.y + dy))
+}
+
 fn line_segment_cross_with_vertical_line(ax: i32, ay: i32, bx: i32, by: i32, x: i32, ylo: i32, yhi: i32) -> bool {
     if ax == bx {
         return false;

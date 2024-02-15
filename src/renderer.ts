@@ -6,6 +6,7 @@ export function renderMap(ctx: CanvasRenderingContext2D, width: number, height: 
     let railNumPoints = renderingInfo.rail_points_num;
     let railPointX = renderingInfo.rail_points_x;
     let railPointY = renderingInfo.rail_points_y;
+    let stations = renderingInfo.stations;
 
     ctx.fillStyle = "white";
     ctx.fillRect(0, 0, width, height);
@@ -23,5 +24,12 @@ export function renderMap(ctx: CanvasRenderingContext2D, width: number, height: 
             p += 1;
             ctx.stroke();
         }
+    }
+
+    ctx.fillStyle = "black";
+    ctx.lineWidth = 1;
+    ctx.font = "16px sans-serif";
+    for (let i = 0; i < stations.length; ++i) {
+        ctx.fillText(stations[i].name, stations[i].x, stations[i].y);
     }
 }

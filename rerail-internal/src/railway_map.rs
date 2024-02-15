@@ -63,12 +63,21 @@ pub struct RailwayMap {
 }
 
 #[wasm_bindgen(getter_with_clone)]
+#[derive(Clone)]
+pub struct StationRenderingInfo {
+    pub name: String,
+    pub x: i32,
+    pub y: i32,
+}
+
+#[wasm_bindgen(getter_with_clone)]
 pub struct RenderingInfo {
     pub rail_colors: Vec<Color>,
     pub rail_width: Vec<i32>,
     pub rail_points_num: Box<[i32]>,
     pub rail_points_x: Box<[i32]>,
     pub rail_points_y: Box<[i32]>,
+    pub stations: Vec<StationRenderingInfo>,
 }
 
 #[wasm_bindgen]
@@ -100,6 +109,7 @@ impl RailwayMap {
         let mut rail_points_num = vec![];
         let mut rail_points_x = vec![];
         let mut rail_points_y = vec![];
+        let mut stations = vec![];
 
         for railway in &self.railways {
             let railway = railway.borrow();
@@ -128,6 +138,8 @@ impl RailwayMap {
 
         let mut station_points_x = vec![];
         let mut station_points_y = vec![];
+        let mut station_rendered = std::collections::BTreeSet::<*mut Station>::new();
+
         for railway in &self.railways {
             let railway = railway.borrow();
 
@@ -148,6 +160,19 @@ impl RailwayMap {
                 station_points_x.push((c1.x - left_x) / zoom_level);
                 station_points_y.push((c0.y - top_y) / zoom_level);
                 station_points_y.push((c1.y - top_y) / zoom_level);
+
+                let st = railway.points[i].station.as_ref().unwrap().upgrade().unwrap();
+                if station_rendered.contains(&st.as_ptr()) {
+                    continue;
+                }
+                station_rendered.insert(st.as_ptr());
+                let st = st.borrow();
+
+                stations.push(StationRenderingInfo {
+                    name: st.name.clone(),
+                    x: (railway.points[i].coord.x - left_x) / zoom_level,
+                    y: (railway.points[i].coord.y - top_y) / zoom_level,
+                });
             }
         }
 
@@ -165,6 +190,7 @@ impl RailwayMap {
             rail_points_num: rail_points_num.into_boxed_slice(),
             rail_points_x: rail_points_x.into_boxed_slice(),
             rail_points_y: rail_points_y.into_boxed_slice(),
+            stations,
         }
     }
 }

@@ -1,8 +1,6 @@
-use std::cell::RefCell;
 use std::io::BufRead;
-use std::rc::Rc;
 
-use crate::railway_map::{Color, Coord, Railway, RailwayMap, Station};
+use crate::railway_map::{BorderPoint, Color, Coord, Railway, RerailMap, Station};
 
 fn next_i32<T: BufRead>(reader: &mut T) -> std::io::Result<i32> {
     let mut buf = [0u8; 4];
@@ -44,7 +42,7 @@ fn next_sjis_string_prefixed_with_len<T: BufRead>(reader: &mut T) -> std::io::Re
     next_sjis_string(reader, len)
 }
 
-pub fn load_legacy_railmap_file<T: BufRead>(mut reader: &mut T) -> std::io::Result<RailwayMap> {
+pub fn load_legacy_railmap_file<T: BufRead>(mut reader: &mut T) -> std::io::Result<RerailMap> {
     assert_eq!(next_char(&mut reader)?, 'R');
     assert_eq!(next_char(&mut reader)?, 'M');
     assert_eq!(next_char(&mut reader)?, 'M');
@@ -60,13 +58,15 @@ pub fn load_legacy_railmap_file<T: BufRead>(mut reader: &mut T) -> std::io::Resu
     let _station_section_size = next_i32(&mut reader)? as usize;
     let num_stations = next_i32(&mut reader)? as usize;
 
-    let mut stations = vec![];
+    let mut rerail_map = RerailMap::new();
+
+    let mut station_indices = vec![];
 
     for _ in 0..num_stations {
         let _station_type = next_u8(&mut reader)?;
         let _station_pos = next_coord(&mut reader)?;
         let station_name = next_sjis_string_prefixed_with_len(&mut reader)?;
-        stations.push(Rc::new(RefCell::new(Station::new(station_name))));
+        station_indices.push(rerail_map.add_station(Station::new(station_name)));
     }
 
     assert_eq!(next_char(&mut reader)?, 'R');
@@ -75,8 +75,6 @@ pub fn load_legacy_railmap_file<T: BufRead>(mut reader: &mut T) -> std::io::Resu
     // rail_section_size is wrong because it assumes that each station on a railway takes 12 bytes (actually 16 bytes)
     let _rail_section_size = next_i32(&mut reader)? as usize;
     let num_rails = next_i32(&mut reader)? as usize;
-
-    let mut rails = vec![];
 
     for _ in 0..num_rails {
         let rail_info = next_i32(&mut reader)?;  // color (3 bytes) + rail type (1 byte) ?
@@ -105,17 +103,17 @@ pub fn load_legacy_railmap_file<T: BufRead>(mut reader: &mut T) -> std::io::Resu
                 cur_pos += 1;
             }
             assert!(associated_stations[cur_pos].is_none());
-            associated_stations[cur_pos] = Some(Rc::downgrade(&stations[station_id]));
+            associated_stations[cur_pos] = Some(station_indices[station_id]);
         }
 
-        let railway = Rc::new(RefCell::new(Railway::new(rail_name, rail_color)));
+        let railway = Railway::new(rail_name, rail_color);
+        let rail_idx = rerail_map.add_railway(railway);
         for (c, st) in points.into_iter().zip(associated_stations.into_iter()) {
             if let Some(st) = &st {
-                st.upgrade().unwrap().borrow_mut().add_railway(Rc::downgrade(&railway));
+                rerail_map[*st].add_railway(rail_idx);
             }
-            railway.borrow_mut().add_point(c, st);
+            rerail_map[rail_idx].add_point(c, st);
         }
-        rails.push(railway);
     }
 
     assert_eq!(next_char(&mut reader)?, 'L');
@@ -129,10 +127,8 @@ pub fn load_legacy_railmap_file<T: BufRead>(mut reader: &mut T) -> std::io::Resu
 
         if kind == 0 {
             let _rail_id = next_i32(&mut reader)? as usize;
-            // println!("{}", rails[rail_id]);
         } else if kind == 1 {
             let _group_name = next_sjis_string_prefixed_with_len(&mut reader)?;
-            // println!("[{}]", group_name);
         } else if kind == 2 {
             // separator
         } else {
@@ -148,23 +144,25 @@ pub fn load_legacy_railmap_file<T: BufRead>(mut reader: &mut T) -> std::io::Resu
     let _border_section_size = next_i32(&mut reader)? as usize;  // TODO: I don't know what this is
     let num_border_points = next_i32(&mut reader)? as usize;
 
-    for _ in 0..num_border_points {
+    let mut border_point_indices = vec![];
+    let mut edges = vec![];
+    for i in 0..num_border_points {
         let _point_level = next_u8(&mut reader)?;
-        let _point_coord = next_coord(&mut reader)?;
-        let num_edges = next_u8(&mut reader)? as usize;
+        let point_coord = next_coord(&mut reader)?;
 
+        border_point_indices.push(rerail_map.add_border_point(BorderPoint::new(point_coord)));
+
+        let num_edges = next_u8(&mut reader)? as usize;
         for _ in 0..num_edges {
-            let _adj_point = next_i32(&mut reader)? as usize;
+            let adj_point = next_i32(&mut reader)? as usize;
+            edges.push((i, adj_point));
         }
     }
 
-    let mut rail_map = RailwayMap::new();
-    for station in stations {
-        rail_map.add_station(station);
-    }
-    for railway in rails {
-        rail_map.add_railway(railway);
+    for (u, v) in edges {
+        rerail_map[border_point_indices[u]].add_neighbor(border_point_indices[v]);
+        rerail_map[border_point_indices[v]].add_neighbor(border_point_indices[u]);
     }
 
-    Ok(rail_map)
+    Ok(rerail_map)
 }

@@ -1,5 +1,5 @@
 import { ChangeEvent, useEffect, useRef, useState } from 'react';
-import { RailwayMap } from '../rerail-internal/pkg/rerail_internal'
+import { RerailMap } from '../rerail-internal/pkg/rerail_internal'
 import { RailwayMapCanvas } from './RailwayMapCanvas'
 
 type RerailAppState = {
@@ -8,7 +8,7 @@ type RerailAppState = {
     viewportTopX: number,
     viewportTopY: number,
     viewportZoomLevel: number,
-    railwayMap: RailwayMap | null,
+    railwayMap: RerailMap | null,
 };
 
 function App() {
@@ -31,7 +31,7 @@ function App() {
         reader.addEventListener("load", () => {
             const res = reader.result as ArrayBuffer;
 
-            const railwayMap = RailwayMap.load(new Uint8Array(res));
+            const railwayMap = RerailMap.load(new Uint8Array(res));
             setAppState({...appState, railwayMap})
         });
 

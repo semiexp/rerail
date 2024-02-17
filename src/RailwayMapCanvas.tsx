@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { RailwayMap } from '../rerail-internal/pkg/rerail_internal'
+import { RerailMap } from '../rerail-internal/pkg/rerail_internal'
 import { renderMap } from './renderer'
 
 type RailwayMapCanvasProps = {
@@ -9,7 +9,7 @@ type RailwayMapCanvasProps = {
     topY: number,
     zoomLevel: number,
     setViewport: (x: number, y: number, zoomLevel: number) => void,
-    railwayMap: RailwayMap | null,
+    railwayMap: RerailMap | null,
 };
 
 type ClickInfo = {

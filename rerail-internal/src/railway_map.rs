@@ -3,7 +3,7 @@ use wasm_bindgen::prelude::*;
 use std::ops::{Index, IndexMut};
 
 pub use crate::geom::Coord;
-use crate::geom::{Rect, compute_station_line_segment};
+use crate::geom::{compute_station_line_segment, Rect};
 
 #[wasm_bindgen]
 #[derive(Clone, Copy)]
@@ -20,7 +20,10 @@ pub struct Station {
 
 impl Station {
     pub fn new(name: String) -> Station {
-        Station { name, railways: vec![] }
+        Station {
+            name,
+            railways: vec![],
+        }
     }
 
     pub fn add_railway(&mut self, railway: RailwayIndex) -> bool {
@@ -47,7 +50,11 @@ pub struct Railway {
 
 impl Railway {
     pub fn new(name: String, color: Color) -> Railway {
-        Railway { name, color, points: vec![] }
+        Railway {
+            name,
+            color,
+            points: vec![],
+        }
     }
 
     pub fn add_point(&mut self, coord: Coord, station: Option<StationIndex>) {
@@ -62,7 +69,10 @@ pub struct BorderPoint {
 
 impl BorderPoint {
     pub fn new(coord: Coord) -> BorderPoint {
-        BorderPoint { coord, neighbors: vec![] }
+        BorderPoint {
+            coord,
+            neighbors: vec![],
+        }
     }
 
     pub fn add_neighbor(&mut self, neighbor: BorderPointIndex) {
@@ -107,7 +117,11 @@ pub struct RenderingInfo {
 #[wasm_bindgen]
 impl RerailMap {
     pub fn new() -> RerailMap {
-        RerailMap { stations: vec![], railways: vec![], border_points: vec![] }
+        RerailMap {
+            stations: vec![],
+            railways: vec![],
+            border_points: vec![],
+        }
     }
 
     pub(crate) fn add_station(&mut self, station: Station) -> StationIndex {
@@ -133,7 +147,14 @@ impl RerailMap {
         crate::loader::load_legacy_railmap_file(&mut data).unwrap()
     }
 
-    pub fn render(&self, left_x: i32, top_y: i32, view_height: i32, view_width: i32, zoom_level: i32) -> RenderingInfo {
+    pub fn render(
+        &self,
+        left_x: i32,
+        top_y: i32,
+        view_height: i32,
+        view_width: i32,
+        zoom_level: i32,
+    ) -> RenderingInfo {
         let right_x = left_x + view_width * zoom_level;
         let bottom_y = top_y + view_height * zoom_level;
         let viewport = Rect::new(top_y, bottom_y, left_x, right_x);
@@ -149,7 +170,10 @@ impl RerailMap {
             if let Some(railway) = railway {
                 let mut num = 0;
                 for i in 1..railway.points.len() {
-                    if viewport.crosses_with_line_segment(railway.points[i - 1].coord, railway.points[i].coord) {
+                    if viewport.crosses_with_line_segment(
+                        railway.points[i - 1].coord,
+                        railway.points[i].coord,
+                    ) {
                         num += 2;
 
                         let c0 = railway.points[i - 1].coord;
@@ -185,10 +209,19 @@ impl RerailMap {
                             continue;
                         }
 
-                        let prev = if i == 0 { None } else { Some(railway.points[i - 1].coord) };
-                        let next = if i + 1 == railway.points.len() { None } else { Some(railway.points[i + 1].coord) };
+                        let prev = if i == 0 {
+                            None
+                        } else {
+                            Some(railway.points[i - 1].coord)
+                        };
+                        let next = if i + 1 == railway.points.len() {
+                            None
+                        } else {
+                            Some(railway.points[i + 1].coord)
+                        };
 
-                        let (c0, c1) = compute_station_line_segment(prev, railway.points[i].coord, next, 200);
+                        let (c0, c1) =
+                            compute_station_line_segment(prev, railway.points[i].coord, next, 200);
 
                         station_points_x.push((c0.x - left_x) / zoom_level);
                         station_points_x.push((c1.x - left_x) / zoom_level);
@@ -212,7 +245,11 @@ impl RerailMap {
         }
 
         if station_points_x.len() > 0 {
-            rail_colors.push(Color { r: 148, g: 148, b: 148 });
+            rail_colors.push(Color {
+                r: 148,
+                g: 148,
+                b: 148,
+            });
             rail_width.push(4);
             rail_points_num.push(station_points_x.len() as i32);
             rail_points_x.extend(station_points_x);

@@ -5,7 +5,10 @@ use crate::railway_map::{BorderPoint, Color, Coord, Railway, RerailMap, Station}
 fn next_i32<T: BufRead>(reader: &mut T) -> std::io::Result<i32> {
     let mut buf = [0u8; 4];
     reader.read_exact(&mut buf)?;
-    let res = ((buf[0] as i32) << 24) | ((buf[1] as i32) << 16) | ((buf[2] as i32) << 8) | (buf[3] as i32);
+    let res = ((buf[0] as i32) << 24)
+        | ((buf[1] as i32) << 16)
+        | ((buf[2] as i32) << 8)
+        | (buf[3] as i32);
     Ok(res)
 }
 
@@ -48,9 +51,9 @@ pub fn load_legacy_railmap_file<T: BufRead>(mut reader: &mut T) -> std::io::Resu
     assert_eq!(next_char(&mut reader)?, 'M');
     assert_eq!(next_char(&mut reader)?, 'T');
 
-    let _ = next_i32(&mut reader)?;  // TODO: I don't know what this is
+    let _ = next_i32(&mut reader)?; // TODO: I don't know what this is
     let _initial_pos = next_coord(&mut reader)?;
-    let _maybe_zoom_level = next_u8(&mut reader)?;  // TODO: verify this
+    let _maybe_zoom_level = next_u8(&mut reader)?; // TODO: verify this
 
     assert_eq!(next_char(&mut reader)?, 'S');
     assert_eq!(next_char(&mut reader)?, 'T');
@@ -77,7 +80,7 @@ pub fn load_legacy_railmap_file<T: BufRead>(mut reader: &mut T) -> std::io::Resu
     let num_rails = next_i32(&mut reader)? as usize;
 
     for _ in 0..num_rails {
-        let rail_info = next_i32(&mut reader)?;  // color (3 bytes) + rail type (1 byte) ?
+        let rail_info = next_i32(&mut reader)?; // color (3 bytes) + rail type (1 byte) ?
         let rail_color = Color {
             r: ((rail_info >> 24) & 255) as u8,
             g: ((rail_info >> 16) & 255) as u8,
@@ -97,7 +100,7 @@ pub fn load_legacy_railmap_file<T: BufRead>(mut reader: &mut T) -> std::io::Resu
         for _ in 0..num_rail_stations {
             let station_id = next_i32(&mut reader)? as usize;
             let station_pos = next_coord(&mut reader)?;
-            let _ = next_i32(&mut reader)?;  // TODO: I don't know what this is
+            let _ = next_i32(&mut reader)?; // TODO: I don't know what this is
 
             while points[cur_pos] != station_pos {
                 cur_pos += 1;
@@ -141,7 +144,7 @@ pub fn load_legacy_railmap_file<T: BufRead>(mut reader: &mut T) -> std::io::Resu
 
     // border_section_size is wrong because it is computed assuming that an edge appears exactly once
     // in the graph, but in reality it appears twice (confusion between directed / undirected graphs)
-    let _border_section_size = next_i32(&mut reader)? as usize;  // TODO: I don't know what this is
+    let _border_section_size = next_i32(&mut reader)? as usize; // TODO: I don't know what this is
     let num_border_points = next_i32(&mut reader)? as usize;
 
     let mut border_point_indices = vec![];

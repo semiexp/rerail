@@ -1,10 +1,8 @@
 import { ChangeEvent, useEffect, useRef, useState } from "react";
 import { RerailMap } from "../rerail-internal/pkg/rerail_internal";
-import { RailwayMapCanvas } from "./RailwayMapCanvas";
+import { RerailEditor } from "./RerailEditor";
 
 type RerailAppState = {
-  viewportHeight: number;
-  viewportWidth: number;
   viewportTopX: number;
   viewportTopY: number;
   viewportZoomLevel: number;
@@ -13,8 +11,6 @@ type RerailAppState = {
 
 function App() {
   const [appState, setAppState] = useState<RerailAppState>({
-    viewportHeight: 100,
-    viewportWidth: 100,
     viewportTopX: 1000000000,
     viewportTopY: 1000000000,
     viewportZoomLevel: 5,
@@ -38,25 +34,6 @@ function App() {
     reader.readAsArrayBuffer(file);
   };
 
-  const canvasContainerRef = useRef<HTMLDivElement>(null);
-
-  const setSize = () => {
-    const container = canvasContainerRef.current!;
-    const height = container.clientHeight;
-    const width = container.clientWidth;
-
-    setAppState((st) => {
-      return { ...st, viewportHeight: height, viewportWidth: width };
-    });
-  };
-
-  useEffect(() => {
-    window.addEventListener("resize", () => {
-      setSize();
-    });
-    setSize();
-  }, []);
-
   return (
     <div
       style={{
@@ -66,25 +43,13 @@ function App() {
         width: "100%",
         margin: 0,
         padding: 0,
-        position: "absolute",
       }}
     >
       <div style={{ width: "100%" }}>
         <input type="file" onChange={fileHandler} />
       </div>
-      <div
-        style={{
-          flex: 1,
-          height: "100%",
-          width: "100%",
-          minHeight: "100px",
-          overflow: "none",
-        }}
-        ref={canvasContainerRef}
-      >
-        <RailwayMapCanvas
-          height={appState.viewportHeight}
-          width={appState.viewportWidth}
+      <div style={{ flex: 1, overflow: "hidden" }}>
+        <RerailEditor
           topX={appState.viewportTopX}
           topY={appState.viewportTopY}
           zoomLevel={appState.viewportZoomLevel}

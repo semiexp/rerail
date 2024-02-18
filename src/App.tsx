@@ -1,4 +1,4 @@
-import { ChangeEvent, useEffect, useRef, useState } from "react";
+import { ChangeEvent, useRef, useState } from "react";
 import { RerailMap } from "../rerail-internal/pkg/rerail_internal";
 import { RerailEditor } from "./RerailEditor";
 
@@ -17,6 +17,7 @@ function App() {
     railwayMap: null,
   });
 
+  const fileElementRef = useRef<HTMLInputElement>(null);
   const fileHandler = (e: ChangeEvent<HTMLInputElement>) => {
     const files = e.currentTarget.files;
 
@@ -46,7 +47,17 @@ function App() {
       }}
     >
       <div style={{ width: "100%" }}>
-        <input type="file" onChange={fileHandler} />
+        <input
+          type="button"
+          value="Open"
+          onClick={() => fileElementRef.current!.click()}
+        />
+        <input
+          type="file"
+          ref={fileElementRef}
+          onChange={fileHandler}
+          style={{ display: "none" }}
+        />
       </div>
       <div style={{ flex: 1, overflow: "hidden" }}>
         <RerailEditor

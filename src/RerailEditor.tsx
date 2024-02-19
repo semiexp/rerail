@@ -18,12 +18,14 @@ type RerailEditorStateType = {
   canvasHeight: number;
   canvasWidth: number;
   railwayList: ViewportRailwayList | null;
+  selectedRailId: number | null;
 };
 
 const initialRerailEditorState: RerailEditorStateType = {
   canvasHeight: 100,
   canvasWidth: 100,
   railwayList: null,
+  selectedRailId: null,
 };
 
 type ClickInfo = {
@@ -56,6 +58,7 @@ export const RerailEditor = (props: RerailEditorProps) => {
       state.canvasHeight,
       state.canvasWidth,
       zoomLevels[props.zoomLevel],
+      state.selectedRailId === null ? undefined : state.selectedRailId,
     );
 
     const canvas = canvasRef.current!;
@@ -73,7 +76,7 @@ export const RerailEditor = (props: RerailEditorProps) => {
     setState((state) => {
       return { ...state, railwayList };
     });
-  }, [props, state.canvasHeight, state.canvasWidth]);
+  }, [props, state.canvasHeight, state.canvasWidth, state.selectedRailId]);
 
   const canvasMouseDownHandler = (
     e: React.MouseEvent<HTMLCanvasElement, MouseEvent>,
@@ -161,6 +164,12 @@ export const RerailEditor = (props: RerailEditorProps) => {
     setCanvasSize();
   }, []);
 
+  const onSelectRailway = (id: number) => {
+    setState((state) => {
+      return { ...state, selectedRailId: id };
+    });
+  };
+
   return (
     <div
       ref={entireContainerRef}
@@ -184,7 +193,11 @@ export const RerailEditor = (props: RerailEditorProps) => {
         }}
       >
         {state.railwayList && (
-          <RailwayListViewer railwayList={state.railwayList} />
+          <RailwayListViewer
+            railwayList={state.railwayList}
+            selectedId={state.selectedRailId}
+            onSelect={onSelectRailway}
+          />
         )}
       </div>
       <div

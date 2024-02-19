@@ -45,18 +45,11 @@ struct RailwayPoint {
 pub struct Railway {
     name: String,
     color: Color,
+    unique_id: usize,
     points: Vec<RailwayPoint>,
 }
 
 impl Railway {
-    pub fn new(name: String, color: Color) -> Railway {
-        Railway {
-            name,
-            color,
-            points: vec![],
-        }
-    }
-
     pub fn add_point(&mut self, coord: Coord, station: Option<StationIndex>) {
         self.points.push(RailwayPoint { coord, station });
     }
@@ -95,6 +88,7 @@ pub struct RerailMap {
     stations: Vec<Option<Station>>,
     railways: Vec<Option<Railway>>,
     border_points: Vec<Option<BorderPoint>>,
+    railway_unique_id_last: usize,
 }
 
 #[wasm_bindgen(getter_with_clone)]
@@ -112,13 +106,15 @@ pub struct RenderingInfo {
     pub rail_points_num: Box<[i32]>,
     pub rail_points_x: Box<[i32]>,
     pub rail_points_y: Box<[i32]>,
+    pub marker_points_x: Vec<i32>,
+    pub marker_points_y: Vec<i32>,
     pub stations: Vec<StationRenderingInfo>,
 }
 
 #[wasm_bindgen(getter_with_clone)]
 pub struct ViewportRailwayList {
     pub rail_names: Vec<String>,
-    pub rail_indices: Vec<RailwayIndex>, // TODO: use persistent index
+    pub rail_ids: Vec<usize>,
 }
 
 #[wasm_bindgen]
@@ -128,6 +124,7 @@ impl RerailMap {
             stations: vec![],
             railways: vec![],
             border_points: vec![],
+            railway_unique_id_last: 0,
         }
     }
 
@@ -137,7 +134,19 @@ impl RerailMap {
         ret
     }
 
-    pub(crate) fn add_railway(&mut self, railway: Railway) -> RailwayIndex {
+    fn railway_unique_id(&mut self) -> usize {
+        let ret = self.railway_unique_id_last;
+        self.railway_unique_id_last += 1;
+        ret
+    }
+
+    pub(crate) fn new_railway(&mut self, name: String, color: Color) -> RailwayIndex {
+        let railway = Railway {
+            name,
+            color,
+            unique_id: self.railway_unique_id(),
+            points: vec![],
+        };
         let ret = RailwayIndex(self.railways.len());
         self.railways.push(Some(railway));
         ret
@@ -167,7 +176,7 @@ impl RerailMap {
         let viewport = Rect::new(top_y, bottom_y, left_x, right_x);
 
         let mut rail_names = vec![];
-        let mut rail_indices = vec![];
+        let mut rail_ids = vec![];
 
         for i in 0..self.railways.len() {
             if let Some(railway) = &self.railways[i] {
@@ -184,14 +193,14 @@ impl RerailMap {
 
                 if is_displayed {
                     rail_names.push(railway.name.clone());
-                    rail_indices.push(RailwayIndex(i));
+                    rail_ids.push(railway.unique_id);
                 }
             }
         }
 
         ViewportRailwayList {
             rail_names,
-            rail_indices,
+            rail_ids,
         }
     }
 
@@ -202,6 +211,7 @@ impl RerailMap {
         view_height: i32,
         view_width: i32,
         zoom_level: i32,
+        selected_rail_id: Option<usize>,
     ) -> RenderingInfo {
         let right_x = left_x + view_width * zoom_level;
         let bottom_y = top_y + view_height * zoom_level;
@@ -214,8 +224,21 @@ impl RerailMap {
         let mut rail_points_y = vec![];
         let mut stations = vec![];
 
+        let mut marker_points_x = vec![];
+        let mut marker_points_y = vec![];
+
         for railway in &self.railways {
             if let Some(railway) = railway {
+                if Some(railway.unique_id) == selected_rail_id {
+                    for i in 0..railway.points.len() {
+                        let c = railway.points[i].coord;
+                        if viewport.contains(c) {
+                            marker_points_x.push((c.x - left_x) / zoom_level);
+                            marker_points_y.push((c.y - top_y) / zoom_level);
+                        }
+                    }
+                }
+
                 let mut num = 0;
                 for i in 1..railway.points.len() {
                     if viewport.crosses_with_line_segment(
@@ -337,6 +360,8 @@ impl RerailMap {
             rail_points_num: rail_points_num.into_boxed_slice(),
             rail_points_x: rail_points_x.into_boxed_slice(),
             rail_points_y: rail_points_y.into_boxed_slice(),
+            marker_points_x,
+            marker_points_y,
             stations,
         }
     }

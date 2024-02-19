@@ -1,6 +1,6 @@
 use std::io::BufRead;
 
-use crate::railway_map::{BorderPoint, Color, Coord, Railway, RerailMap, Station};
+use crate::railway_map::{BorderPoint, Color, Coord, RerailMap, Station};
 
 fn next_i32<T: BufRead>(reader: &mut T) -> std::io::Result<i32> {
     let mut buf = [0u8; 4];
@@ -109,8 +109,7 @@ pub fn load_legacy_railmap_file<T: BufRead>(mut reader: &mut T) -> std::io::Resu
             associated_stations[cur_pos] = Some(station_indices[station_id]);
         }
 
-        let railway = Railway::new(rail_name, rail_color);
-        let rail_idx = rerail_map.add_railway(railway);
+        let rail_idx = rerail_map.new_railway(rail_name, rail_color);
         for (c, st) in points.into_iter().zip(associated_stations.into_iter()) {
             if let Some(st) = &st {
                 rerail_map[*st].add_railway(rail_idx);

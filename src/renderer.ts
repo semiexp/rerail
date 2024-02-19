@@ -1,5 +1,7 @@
 import { RenderingInfo } from "../rerail-internal/pkg/rerail_internal";
 
+const markerSize = 10;
+
 export function renderMap(
   ctx: CanvasRenderingContext2D,
   width: number,
@@ -11,6 +13,8 @@ export function renderMap(
   let railNumPoints = renderingInfo.rail_points_num;
   let railPointX = renderingInfo.rail_points_x;
   let railPointY = renderingInfo.rail_points_y;
+  let markerX = renderingInfo.marker_points_x;
+  let markerY = renderingInfo.marker_points_y;
   let stations = renderingInfo.stations;
 
   ctx.fillStyle = "white";
@@ -29,6 +33,17 @@ export function renderMap(
       p += 1;
       ctx.stroke();
     }
+  }
+
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = "black";
+  for (let i = 0; i < markerX.length; ++i) {
+    ctx.strokeRect(
+      markerX[i] - markerSize / 2,
+      markerY[i] - markerSize / 2,
+      markerSize,
+      markerSize,
+    );
   }
 
   ctx.fillStyle = "black";

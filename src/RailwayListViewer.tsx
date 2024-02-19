@@ -19,6 +19,7 @@ export const RailwayListViewer = (props: RailwayListViewerProps) => {
     }
     items.push(
       <div
+        className="railwayListItem"
         style={{
           width: "100%",
           textOverflow: "ellipsis",

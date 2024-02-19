@@ -1,6 +1,10 @@
 import { useState, useRef, useEffect } from "react";
-import { RerailMap } from "../rerail-internal/pkg/rerail_internal";
+import {
+  RerailMap,
+  ViewportRailwayList,
+} from "../rerail-internal/pkg/rerail_internal";
 import { renderMap } from "./renderer";
+import { RailwayListViewer } from "./RailwayListViewer";
 
 type RerailEditorProps = {
   topX: number;
@@ -10,9 +14,16 @@ type RerailEditorProps = {
   railwayMap: RerailMap | null;
 };
 
-const initialRerailEditorState = {
+type RerailEditorStateType = {
+  canvasHeight: number;
+  canvasWidth: number;
+  railwayList: ViewportRailwayList | null;
+};
+
+const initialRerailEditorState: RerailEditorStateType = {
   canvasHeight: 100,
   canvasWidth: 100,
+  railwayList: null,
 };
 
 type ClickInfo = {
@@ -32,7 +43,9 @@ export const RerailEditor = (props: RerailEditorProps) => {
   const canvasContainerRef = useRef<HTMLDivElement>(null);
 
   const [clickPos, setClickPos] = useState<ClickInfo | null>(null);
-  const [state, setState] = useState(initialRerailEditorState);
+  const [state, setState] = useState<RerailEditorStateType>(
+    initialRerailEditorState,
+  );
 
   useEffect(() => {
     if (!props.railwayMap) return;
@@ -49,6 +62,17 @@ export const RerailEditor = (props: RerailEditorProps) => {
     const ctx = canvas.getContext("2d")!;
 
     renderMap(ctx, state.canvasWidth, state.canvasHeight, renderInfo);
+
+    const railwayList = railwayMap.railways_in_viewport(
+      props.topX,
+      props.topY,
+      state.canvasHeight,
+      state.canvasWidth,
+      zoomLevels[props.zoomLevel],
+    );
+    setState((state) => {
+      return { ...state, railwayList };
+    });
   }, [props, state.canvasHeight, state.canvasWidth]);
 
   const canvasMouseDownHandler = (
@@ -159,7 +183,9 @@ export const RerailEditor = (props: RerailEditorProps) => {
           backgroundColor: "#eeeeee",
         }}
       >
-        Railway names
+        {state.railwayList && (
+          <RailwayListViewer railwayList={state.railwayList} />
+        )}
       </div>
       <div
         style={{

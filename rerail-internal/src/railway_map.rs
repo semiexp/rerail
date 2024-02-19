@@ -83,6 +83,7 @@ impl BorderPoint {
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct StationIndex(usize);
 
+#[wasm_bindgen(getter_with_clone)]
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct RailwayIndex(usize);
 
@@ -112,6 +113,12 @@ pub struct RenderingInfo {
     pub rail_points_x: Box<[i32]>,
     pub rail_points_y: Box<[i32]>,
     pub stations: Vec<StationRenderingInfo>,
+}
+
+#[wasm_bindgen(getter_with_clone)]
+pub struct ViewportRailwayList {
+    pub rail_names: Vec<String>,
+    pub rail_indices: Vec<RailwayIndex>, // TODO: use persistent index
 }
 
 #[wasm_bindgen]
@@ -145,6 +152,47 @@ impl RerailMap {
     pub fn load(data: &[u8]) -> RerailMap {
         let mut data = data;
         crate::loader::load_legacy_railmap_file(&mut data).unwrap()
+    }
+
+    pub fn railways_in_viewport(
+        &self,
+        left_x: i32,
+        top_y: i32,
+        view_height: i32,
+        view_width: i32,
+        zoom_level: i32,
+    ) -> ViewportRailwayList {
+        let right_x = left_x + view_width * zoom_level;
+        let bottom_y = top_y + view_height * zoom_level;
+        let viewport = Rect::new(top_y, bottom_y, left_x, right_x);
+
+        let mut rail_names = vec![];
+        let mut rail_indices = vec![];
+
+        for i in 0..self.railways.len() {
+            if let Some(railway) = &self.railways[i] {
+                let mut is_displayed = false;
+                for j in 1..railway.points.len() {
+                    if viewport.crosses_with_line_segment(
+                        railway.points[j - 1].coord,
+                        railway.points[j].coord,
+                    ) {
+                        is_displayed = true;
+                        break;
+                    }
+                }
+
+                if is_displayed {
+                    rail_names.push(railway.name.clone());
+                    rail_indices.push(RailwayIndex(i));
+                }
+            }
+        }
+
+        ViewportRailwayList {
+            rail_names,
+            rail_indices,
+        }
     }
 
     pub fn render(

@@ -69,6 +69,10 @@ pub fn compute_station_line_segment(
     )
 }
 
+fn between(a: i32, b: i32, x: i32) -> bool {
+    (a < x && x < b) || (b < x && x < a)
+}
+
 fn line_segment_cross_with_vertical_line(
     ax: i32,
     ay: i32,
@@ -79,6 +83,9 @@ fn line_segment_cross_with_vertical_line(
     yhi: i32,
 ) -> bool {
     if ax == bx {
+        return false;
+    }
+    if !between(ax, bx, x) {
         return false;
     }
     // y = (x - ax) / (bx - ax) * (by - ay) + ay
@@ -115,6 +122,12 @@ impl Rect {
     }
 
     pub fn crosses_with_line_segment(&self, a: Coord, b: Coord) -> bool {
+        if a.x == b.x {
+            return between(self.left, self.right, a.x)
+                && !(a.y <= self.top && b.y <= self.top)
+                && !(a.y >= self.bottom && b.y >= self.bottom);
+        }
+
         if self.contains(a) || self.contains(b) {
             return true;
         }
@@ -199,6 +212,16 @@ mod tests {
         );
         assert_eq!(
             rect.crosses_with_line_segment(Coord::new(0, -1), Coord::new(6, -2)),
+            false
+        );
+
+        let rect2 = Rect::new(0, 900, 0, 1200);
+        assert_eq!(
+            rect2.crosses_with_line_segment(Coord::new(10906, 2266), Coord::new(11146, 2306)),
+            false
+        );
+        assert_eq!(
+            rect2.crosses_with_line_segment(Coord::new(11561, 626), Coord::new(11561, 1136)),
             false
         );
     }

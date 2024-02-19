@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "build-internal": "wasm-pack build --target web rerail-internal/",
     "build": "tsc && vite build",
     "lint": "eslint . --ext ts,tsx --max-warnings 0",
     "preview": "vite preview",

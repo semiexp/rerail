@@ -1,6 +1,9 @@
 import { ChangeEvent, useRef, useState } from "react";
+import init_wasm from "../rerail-internal/pkg/rerail_internal";
 import { RerailMap } from "../rerail-internal/pkg/rerail_internal";
 import { RerailEditor } from "./RerailEditor";
+
+await init_wasm();
 
 type RerailAppState = {
   viewportTopX: number;

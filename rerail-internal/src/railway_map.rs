@@ -136,7 +136,7 @@ extern "C" {
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct Viewport {
+pub struct ViewportSpec {
     #[serde(rename = "leftX")]
     left_x: i32,
     #[serde(rename = "topY")]
@@ -144,6 +144,57 @@ pub struct Viewport {
     width: i32,
     height: i32,
     zoom: i32,
+}
+
+struct PhysicalCoord {
+    x: i32,
+    y: i32,
+}
+
+fn split_into_x_and_y(points: &[PhysicalCoord]) -> (Vec<i32>, Vec<i32>) {
+    let mut xs = vec![];
+    let mut ys = vec![];
+    for pt in points {
+        xs.push(pt.x);
+        ys.push(pt.y);
+    }
+    (xs, ys)
+}
+
+struct Viewport {
+    left_x: i32,
+    top_y: i32,
+    zoom: i32,
+    bounding_box: Rect,
+}
+
+impl Viewport {
+    fn new(spec: ViewportSpec) -> Viewport {
+        let bottom = spec.top_y + spec.height * spec.zoom;
+        let right = spec.left_x + spec.width * spec.zoom;
+
+        Viewport {
+            left_x: spec.left_x,
+            top_y: spec.top_y,
+            zoom: spec.zoom,
+            bounding_box: Rect::new(spec.top_y, bottom, spec.left_x, right),
+        }
+    }
+
+    fn contains(&self, coord: Coord) -> bool {
+        self.bounding_box.contains(coord)
+    }
+
+    fn crosses_with_line_segment(&self, a: Coord, b: Coord) -> bool {
+        self.bounding_box.crosses_with_line_segment(a, b)
+    }
+
+    fn to_physical_point(&self, coord: Coord) -> PhysicalCoord {
+        PhysicalCoord {
+            x: (coord.x - self.left_x) / self.zoom,
+            y: (coord.y - self.top_y) / self.zoom,
+        }
+    }
 }
 
 #[wasm_bindgen]
@@ -193,17 +244,8 @@ impl RerailMap {
     }
 
     pub fn railways_in_viewport(&self, viewport: JsViewport) -> ViewportRailwayList {
-        let viewport: Viewport = serde_wasm_bindgen::from_value(viewport.into()).unwrap();
-
-        let left_x = viewport.left_x;
-        let top_y = viewport.top_y;
-        let view_height = viewport.height;
-        let view_width = viewport.width;
-        let zoom_level = viewport.zoom;
-
-        let right_x = left_x + view_width * zoom_level;
-        let bottom_y = top_y + view_height * zoom_level;
-        let viewport = Rect::new(top_y, bottom_y, left_x, right_x);
+        let viewport: ViewportSpec = serde_wasm_bindgen::from_value(viewport.into()).unwrap();
+        let viewport = Viewport::new(viewport);
 
         let mut rail_names = vec![];
         let mut rail_ids = vec![];
@@ -235,27 +277,16 @@ impl RerailMap {
     }
 
     pub fn render(&self, viewport: JsViewport, selected_rail_id: Option<usize>) -> RenderingInfo {
-        let viewport: Viewport = serde_wasm_bindgen::from_value(viewport.into()).unwrap();
-
-        let left_x = viewport.left_x;
-        let top_y = viewport.top_y;
-        let view_height = viewport.height;
-        let view_width = viewport.width;
-        let zoom_level = viewport.zoom;
-
-        let right_x = left_x + view_width * zoom_level;
-        let bottom_y = top_y + view_height * zoom_level;
-        let viewport = Rect::new(top_y, bottom_y, left_x, right_x);
+        let viewport: ViewportSpec = serde_wasm_bindgen::from_value(viewport.into()).unwrap();
+        let viewport = Viewport::new(viewport);
 
         let mut rail_colors = vec![];
         let mut rail_width = vec![];
         let mut rail_points_num = vec![];
-        let mut rail_points_x = vec![];
-        let mut rail_points_y = vec![];
+        let mut rail_points = vec![];
         let mut stations = vec![];
 
-        let mut marker_points_x = vec![];
-        let mut marker_points_y = vec![];
+        let mut marker_points = vec![];
 
         for railway in &self.railways {
             if let Some(railway) = railway {
@@ -263,8 +294,7 @@ impl RerailMap {
                     for i in 0..railway.points.len() {
                         let c = railway.points[i].coord;
                         if viewport.contains(c) {
-                            marker_points_x.push((c.x - left_x) / zoom_level);
-                            marker_points_y.push((c.y - top_y) / zoom_level);
+                            marker_points.push(viewport.to_physical_point(c));
                         }
                     }
                 }
@@ -277,13 +307,8 @@ impl RerailMap {
                     ) {
                         num += 2;
 
-                        let c0 = railway.points[i - 1].coord;
-                        let c1 = railway.points[i].coord;
-
-                        rail_points_x.push((c0.x - left_x) / zoom_level);
-                        rail_points_x.push((c1.x - left_x) / zoom_level);
-                        rail_points_y.push((c0.y - top_y) / zoom_level);
-                        rail_points_y.push((c1.y - top_y) / zoom_level);
+                        rail_points.push(viewport.to_physical_point(railway.points[i - 1].coord));
+                        rail_points.push(viewport.to_physical_point(railway.points[i].coord));
                     }
                 }
 
@@ -295,8 +320,7 @@ impl RerailMap {
             }
         }
 
-        let mut station_points_x = vec![];
-        let mut station_points_y = vec![];
+        let mut station_points = vec![];
         let mut station_rendered = std::collections::BTreeSet::<StationIndex>::new();
 
         for railway in &self.railways {
@@ -324,10 +348,8 @@ impl RerailMap {
                         let (c0, c1) =
                             compute_station_line_segment(prev, railway.points[i].coord, next, 200);
 
-                        station_points_x.push((c0.x - left_x) / zoom_level);
-                        station_points_x.push((c1.x - left_x) / zoom_level);
-                        station_points_y.push((c0.y - top_y) / zoom_level);
-                        station_points_y.push((c1.y - top_y) / zoom_level);
+                        station_points.push(viewport.to_physical_point(c0));
+                        station_points.push(viewport.to_physical_point(c1));
 
                         if station_rendered.contains(&station_idx) {
                             continue;
@@ -335,30 +357,29 @@ impl RerailMap {
                         station_rendered.insert(station_idx);
 
                         let station = &self[station_idx];
+                        let pt = viewport.to_physical_point(railway.points[i].coord);
                         stations.push(StationRenderingInfo {
                             name: station.name.clone(),
-                            x: (railway.points[i].coord.x - left_x) / zoom_level,
-                            y: (railway.points[i].coord.y - top_y) / zoom_level,
+                            x: pt.x,
+                            y: pt.y,
                         });
                     }
                 }
             }
         }
 
-        if station_points_x.len() > 0 {
+        if station_points.len() > 0 {
             rail_colors.push(Color {
                 r: 148,
                 g: 148,
                 b: 148,
             });
             rail_width.push(4);
-            rail_points_num.push(station_points_x.len() as i32);
-            rail_points_x.extend(station_points_x);
-            rail_points_y.extend(station_points_y);
+            rail_points_num.push(station_points.len() as i32);
+            rail_points.extend(station_points);
         }
 
-        let mut border_points_x = vec![];
-        let mut border_points_y = vec![];
+        let mut border_points = vec![];
 
         for i in 0..self.border_points.len() {
             if let Some(pt) = &self.border_points[i] {
@@ -366,23 +387,23 @@ impl RerailMap {
                     if i < j.0 {
                         let pt2 = &self[j];
                         if viewport.crosses_with_line_segment(pt.coord, pt2.coord) {
-                            border_points_x.push((pt.coord.x - left_x) / zoom_level);
-                            border_points_y.push((pt.coord.y - top_y) / zoom_level);
-                            border_points_x.push((pt2.coord.x - left_x) / zoom_level);
-                            border_points_y.push((pt2.coord.y - top_y) / zoom_level);
+                            border_points.push(viewport.to_physical_point(pt.coord));
+                            border_points.push(viewport.to_physical_point(pt2.coord));
                         }
                     }
                 }
             }
         }
 
-        if border_points_x.len() > 0 {
+        if border_points.len() > 0 {
             rail_colors.push(Color { r: 0, g: 0, b: 0 });
             rail_width.push(1);
-            rail_points_num.push(border_points_x.len() as i32);
-            rail_points_x.extend(border_points_x);
-            rail_points_y.extend(border_points_y);
+            rail_points_num.push(border_points.len() as i32);
+            rail_points.extend(border_points);
         }
+
+        let (rail_points_x, rail_points_y) = split_into_x_and_y(&rail_points);
+        let (marker_points_x, marker_points_y) = split_into_x_and_y(&marker_points);
 
         RenderingInfo {
             rail_colors,

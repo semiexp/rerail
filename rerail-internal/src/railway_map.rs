@@ -1,5 +1,6 @@
 use wasm_bindgen::prelude::*;
 
+use serde::{Deserialize, Serialize};
 use std::ops::{Index, IndexMut};
 
 pub use crate::geom::Coord;
@@ -117,6 +118,34 @@ pub struct ViewportRailwayList {
     pub rail_ids: Vec<usize>,
 }
 
+#[wasm_bindgen(typescript_custom_section)]
+const VIEWPORT: &'static str = r#"
+export type Viewport = {
+  leftX: number,
+  topY: number,
+  width: number,
+  height: number,
+  zoom: number,
+};
+"#;
+
+#[wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen(typescript_type = "Viewport")]
+    pub type JsViewport;
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct Viewport {
+    #[serde(rename = "leftX")]
+    left_x: i32,
+    #[serde(rename = "topY")]
+    top_y: i32,
+    width: i32,
+    height: i32,
+    zoom: i32,
+}
+
 #[wasm_bindgen]
 impl RerailMap {
     pub fn new() -> RerailMap {
@@ -163,14 +192,15 @@ impl RerailMap {
         crate::loader::load_legacy_railmap_file(&mut data).unwrap()
     }
 
-    pub fn railways_in_viewport(
-        &self,
-        left_x: i32,
-        top_y: i32,
-        view_height: i32,
-        view_width: i32,
-        zoom_level: i32,
-    ) -> ViewportRailwayList {
+    pub fn railways_in_viewport(&self, viewport: JsViewport) -> ViewportRailwayList {
+        let viewport: Viewport = serde_wasm_bindgen::from_value(viewport.into()).unwrap();
+
+        let left_x = viewport.left_x;
+        let top_y = viewport.top_y;
+        let view_height = viewport.height;
+        let view_width = viewport.width;
+        let zoom_level = viewport.zoom;
+
         let right_x = left_x + view_width * zoom_level;
         let bottom_y = top_y + view_height * zoom_level;
         let viewport = Rect::new(top_y, bottom_y, left_x, right_x);
@@ -204,15 +234,15 @@ impl RerailMap {
         }
     }
 
-    pub fn render(
-        &self,
-        left_x: i32,
-        top_y: i32,
-        view_height: i32,
-        view_width: i32,
-        zoom_level: i32,
-        selected_rail_id: Option<usize>,
-    ) -> RenderingInfo {
+    pub fn render(&self, viewport: JsViewport, selected_rail_id: Option<usize>) -> RenderingInfo {
+        let viewport: Viewport = serde_wasm_bindgen::from_value(viewport.into()).unwrap();
+
+        let left_x = viewport.left_x;
+        let top_y = viewport.top_y;
+        let view_height = viewport.height;
+        let view_width = viewport.width;
+        let zoom_level = viewport.zoom;
+
         let right_x = left_x + view_width * zoom_level;
         let bottom_y = top_y + view_height * zoom_level;
         let viewport = Rect::new(top_y, bottom_y, left_x, right_x);

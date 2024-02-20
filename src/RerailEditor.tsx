@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import {
   RerailMap,
+  Viewport,
   ViewportRailwayList,
 } from "../rerail-internal/pkg/rerail_internal";
 import { renderMap } from "./renderer";
@@ -52,12 +53,16 @@ export const RerailEditor = (props: RerailEditorProps) => {
   useEffect(() => {
     if (!props.railwayMap) return;
     const railwayMap = props.railwayMap;
+    const viewport: Viewport = {
+      leftX: props.topX,
+      topY: props.topY,
+      height: state.canvasHeight,
+      width: state.canvasWidth,
+      zoom: zoomLevels[props.zoomLevel],
+    };
+
     const renderInfo = railwayMap.render(
-      props.topX,
-      props.topY,
-      state.canvasHeight,
-      state.canvasWidth,
-      zoomLevels[props.zoomLevel],
+      viewport,
       state.selectedRailId === null ? undefined : state.selectedRailId,
     );
 
@@ -66,13 +71,7 @@ export const RerailEditor = (props: RerailEditorProps) => {
 
     renderMap(ctx, state.canvasWidth, state.canvasHeight, renderInfo);
 
-    const railwayList = railwayMap.railways_in_viewport(
-      props.topX,
-      props.topY,
-      state.canvasHeight,
-      state.canvasWidth,
-      zoomLevels[props.zoomLevel],
-    );
+    const railwayList = railwayMap.railways_in_viewport(viewport);
     setState((state) => {
       return { ...state, railwayList };
     });

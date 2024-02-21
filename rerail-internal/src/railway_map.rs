@@ -336,6 +336,18 @@ impl RerailMap {
 
         let mut marker_points = vec![];
 
+        let (skip_nearest_segment_p, skip_nearest_segment_q) = match skip_nearest_segment {
+            Some(s) => (Some(s.idx0), s.idx1),
+            None => (None, None),
+        };
+        let mouse_coord = match (mouse_x, mouse_y) {
+            (Some(x), Some(y)) => Some(Coord::new(
+                x * viewport.zoom + viewport.left_x,
+                y * viewport.zoom + viewport.top_y,
+            )),
+            _ => None,
+        };
+
         for railway in &self.railways {
             if let Some(railway) = railway {
                 let mut num = 0;
@@ -430,7 +442,7 @@ impl RerailMap {
         let mut station_points = vec![];
         let mut station_rendered = std::collections::BTreeSet::<StationIndex>::new();
 
-        for railway in &self.railways {
+        for (rid, railway) in self.railways.iter().enumerate() {
             if let Some(railway) = railway {
                 for i in 0..railway.points.len() {
                     if let Some(station_idx) = railway.points[i].station {
@@ -444,16 +456,40 @@ impl RerailMap {
                         let prev = if i == 0 {
                             None
                         } else {
-                            Some(railway.points[i - 1].coord)
+                            if Some(rid) == selected_rail_id
+                                && Some(i - 1) == skip_nearest_segment_p
+                                && (Some(i) == skip_nearest_segment_q
+                                    || skip_nearest_segment_q.is_none())
+                            {
+                                mouse_coord
+                            } else {
+                                Some(railway.points[i - 1].coord)
+                            }
+                        };
+                        let cur = if Some(rid) == selected_rail_id
+                            && Some(i) == skip_nearest_segment_p
+                            && skip_nearest_segment_q.is_none()
+                        {
+                            mouse_coord.unwrap()
+                        } else {
+                            railway.points[i].coord
                         };
                         let next = if i + 1 == railway.points.len() {
                             None
                         } else {
-                            Some(railway.points[i + 1].coord)
+                            if Some(rid) == selected_rail_id
+                                && ((Some(i + 1) == skip_nearest_segment_p
+                                    && skip_nearest_segment_q.is_none())
+                                    || (Some(i) == skip_nearest_segment_p
+                                        && Some(i + 1) == skip_nearest_segment_q))
+                            {
+                                mouse_coord
+                            } else {
+                                Some(railway.points[i + 1].coord)
+                            }
                         };
 
-                        let (c0, c1) =
-                            compute_station_line_segment(prev, railway.points[i].coord, next, 200);
+                        let (c0, c1) = compute_station_line_segment(prev, cur, next, 200);
 
                         station_points.push(viewport.to_physical_point(c0));
                         station_points.push(viewport.to_physical_point(c1));

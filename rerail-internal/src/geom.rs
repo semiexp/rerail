@@ -97,6 +97,32 @@ fn line_segment_cross_with_vertical_line(
     }
 }
 
+pub fn distance_norm_square_points(p: Coord, q: Coord) -> i64 {
+    let dx = (p.x - q.x) as i64;
+    let dy = (p.y - q.y) as i64;
+    dx * dx + dy * dy
+}
+
+pub fn distance_norm_square_point_line_segment(p: Coord, q: Coord, a: Coord) -> i64 {
+    let tx = (q.x - p.x) as i64;
+    let x = (p.x - a.x) as i64;
+    let ty = (q.y - p.y) as i64;
+    let y = (p.y - a.y) as i64;
+
+    let a = tx * tx + ty * ty;
+    let b = 2 * (tx * x + ty * y);
+    let c = x * x + y * y;
+
+    if 0 <= b {
+        c
+    } else if b <= -2 * a {
+        a + b + c
+    } else {
+        let w = (b as f64 * b as f64) / (a as f64) * 0.25;
+        c - w as i64
+    }
+}
+
 impl Rect {
     pub fn new(top: i32, bottom: i32, left: i32, right: i32) -> Rect {
         Rect {

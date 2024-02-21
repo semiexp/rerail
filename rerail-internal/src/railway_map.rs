@@ -4,7 +4,10 @@ use serde::{Deserialize, Serialize};
 use std::ops::{Index, IndexMut};
 
 pub use crate::geom::Coord;
-use crate::geom::{compute_station_line_segment, Rect};
+use crate::geom::{
+    compute_station_line_segment, distance_norm_square_point_line_segment,
+    distance_norm_square_points, Rect,
+};
 
 #[wasm_bindgen]
 #[derive(Clone, Copy)]
@@ -146,9 +149,19 @@ pub struct ViewportSpec {
     zoom: i32,
 }
 
+#[derive(Clone, Copy)]
 struct PhysicalCoord {
     x: i32,
     y: i32,
+}
+
+impl PhysicalCoord {
+    fn as_coord(&self) -> Coord {
+        Coord {
+            x: self.x,
+            y: self.y,
+        }
+    }
 }
 
 fn split_into_x_and_y(points: &[PhysicalCoord]) -> (Vec<i32>, Vec<i32>) {
@@ -194,6 +207,20 @@ impl Viewport {
             x: (coord.x - self.left_x) / self.zoom,
             y: (coord.y - self.top_y) / self.zoom,
         }
+    }
+}
+
+#[wasm_bindgen]
+#[derive(Clone, Copy)]
+pub struct NearestSegment {
+    pub idx0: usize,
+    pub idx1: Option<usize>,
+}
+
+#[wasm_bindgen]
+impl NearestSegment {
+    pub fn clone(&self) -> NearestSegment {
+        Clone::clone(&self)
     }
 }
 
@@ -276,7 +303,14 @@ impl RerailMap {
         }
     }
 
-    pub fn render(&self, viewport: JsViewport, selected_rail_id: Option<usize>) -> RenderingInfo {
+    pub fn render(
+        &self,
+        viewport: JsViewport,
+        selected_rail_id: Option<usize>,
+        skip_nearest_segment: Option<NearestSegment>,
+        mouse_x: Option<i32>,
+        mouse_y: Option<i32>,
+    ) -> RenderingInfo {
         let viewport: ViewportSpec = serde_wasm_bindgen::from_value(viewport.into()).unwrap();
         let viewport = Viewport::new(viewport);
 
@@ -290,8 +324,52 @@ impl RerailMap {
 
         for railway in &self.railways {
             if let Some(railway) = railway {
+                let mut num = 0;
+
                 if Some(railway.unique_id) == selected_rail_id {
+                    if let (Some(skip_nearest_segment), Some(mouse_x), Some(mouse_y)) =
+                        (&skip_nearest_segment, mouse_x, mouse_y)
+                    {
+                        let mouse = PhysicalCoord {
+                            x: mouse_x,
+                            y: mouse_y,
+                        };
+                        marker_points.push(mouse);
+                        let idx0 = skip_nearest_segment.idx0;
+                        if let Some(idx1) = skip_nearest_segment.idx1 {
+                            num += 4;
+                            rail_points.push(mouse);
+                            rail_points
+                                .push(viewport.to_physical_point(railway.points[idx0].coord));
+                            rail_points.push(mouse);
+                            rail_points
+                                .push(viewport.to_physical_point(railway.points[idx1].coord));
+                        } else {
+                            if idx0 > 0 {
+                                num += 2;
+                                rail_points.push(mouse);
+                                rail_points.push(
+                                    viewport.to_physical_point(railway.points[idx0 - 1].coord),
+                                );
+                            }
+                            if idx0 + 1 < railway.points.len() {
+                                num += 2;
+                                rail_points.push(mouse);
+                                rail_points.push(
+                                    viewport.to_physical_point(railway.points[idx0 + 1].coord),
+                                );
+                            }
+                        }
+                    }
+
                     for i in 0..railway.points.len() {
+                        if let Some(skip_nearest_segment) = &skip_nearest_segment {
+                            if skip_nearest_segment.idx0 == i && skip_nearest_segment.idx1.is_none()
+                            {
+                                continue;
+                            }
+                        }
+
                         let c = railway.points[i].coord;
                         if viewport.contains(c) {
                             marker_points.push(viewport.to_physical_point(c));
@@ -299,8 +377,23 @@ impl RerailMap {
                     }
                 }
 
-                let mut num = 0;
                 for i in 1..railway.points.len() {
+                    if Some(railway.unique_id) == selected_rail_id {
+                        if let Some(skip_nearest_segment) = &skip_nearest_segment {
+                            if skip_nearest_segment.idx0 == i - 1
+                                && skip_nearest_segment.idx1 == Some(i)
+                            {
+                                continue;
+                            }
+                            if (skip_nearest_segment.idx0 == i - 1
+                                || skip_nearest_segment.idx0 == i)
+                                && skip_nearest_segment.idx1.is_none()
+                            {
+                                continue;
+                            }
+                        }
+                    }
+
                     if viewport.crosses_with_line_segment(
                         railway.points[i - 1].coord,
                         railway.points[i].coord,
@@ -415,6 +508,75 @@ impl RerailMap {
             marker_points_y,
             stations,
         }
+    }
+
+    pub fn find_nearest_segment(
+        &self,
+        viewport: JsViewport,
+        rail_id: usize,
+        x: i32,
+        y: i32,
+        max_dist: i32,
+    ) -> Option<NearestSegment> {
+        let viewport: ViewportSpec = serde_wasm_bindgen::from_value(viewport.into()).unwrap();
+        let viewport = Viewport::new(viewport);
+        let p = Coord::new(x, y);
+
+        let threshold = max_dist as i64 * max_dist as i64;
+
+        for railway in &self.railways {
+            if let Some(railway) = railway {
+                if railway.unique_id != rail_id {
+                    continue;
+                }
+
+                let mut nearest = (threshold + 1, 0);
+
+                for i in 0..railway.points.len() {
+                    let d = distance_norm_square_points(
+                        viewport
+                            .to_physical_point(railway.points[i].coord)
+                            .as_coord(),
+                        p,
+                    );
+                    if d < nearest.0 {
+                        nearest = (d, i);
+                    }
+                }
+
+                if nearest.0 <= threshold {
+                    return Some(NearestSegment {
+                        idx0: nearest.1,
+                        idx1: None,
+                    });
+                }
+
+                let mut nearest = (threshold + 1, 0);
+
+                for i in 1..railway.points.len() {
+                    let c0 = viewport
+                        .to_physical_point(railway.points[i - 1].coord)
+                        .as_coord();
+                    let c1 = viewport
+                        .to_physical_point(railway.points[i].coord)
+                        .as_coord();
+                    let d = distance_norm_square_point_line_segment(c0, c1, p);
+                    if d < nearest.0 {
+                        nearest = (d, i);
+                    }
+                }
+
+                if nearest.0 <= threshold {
+                    return Some(NearestSegment {
+                        idx0: nearest.1 - 1,
+                        idx1: Some(nearest.1),
+                    });
+                } else {
+                    return None;
+                }
+            }
+        }
+        None
     }
 }
 

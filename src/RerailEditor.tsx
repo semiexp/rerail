@@ -3,6 +3,7 @@ import {
   RerailMap,
   Viewport,
   ViewportRailwayList,
+  NearestSegment,
 } from "../rerail-internal/pkg/rerail_internal";
 import { renderMap } from "./renderer";
 import { RailwayListViewer } from "./RailwayListViewer";
@@ -15,11 +16,25 @@ type RerailEditorProps = {
   railwayMap: RerailMap | null;
 };
 
+type EditorMode = "none" | "viewport-moving" | "point-moving";
+
 type RerailEditorStateType = {
   canvasHeight: number;
   canvasWidth: number;
   railwayList: ViewportRailwayList | null;
   selectedRailId: number | null;
+  editorMode: EditorMode;
+
+  // viewport-moving
+  mouseXOnMouseDown?: number;
+  mouseYOnMouseDown?: number;
+  topXOnMouseDown?: number;
+  topYOnMouseDown?: number;
+
+  // point-moving
+  skipNearestSegment?: NearestSegment;
+  mouseX?: number;
+  mouseY?: number;
 };
 
 const initialRerailEditorState: RerailEditorStateType = {
@@ -27,13 +42,7 @@ const initialRerailEditorState: RerailEditorStateType = {
   canvasWidth: 100,
   railwayList: null,
   selectedRailId: null,
-};
-
-type ClickInfo = {
-  mouseX: number;
-  mouseY: number;
-  topX: number;
-  topY: number;
+  editorMode: "none",
 };
 
 const zoomLevels = [
@@ -45,10 +54,23 @@ export const RerailEditor = (props: RerailEditorProps) => {
   const entireContainerRef = useRef<HTMLDivElement>(null);
   const canvasContainerRef = useRef<HTMLDivElement>(null);
 
-  const [clickPos, setClickPos] = useState<ClickInfo | null>(null);
   const [state, setState] = useState<RerailEditorStateType>(
     initialRerailEditorState,
   );
+
+  const isShiftKeyPressed = useRef(false);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      isShiftKeyPressed.current = e.shiftKey;
+    };
+    window.addEventListener("keydown", handler);
+    window.addEventListener("keyup", handler);
+    return () => {
+      window.removeEventListener("keydown", handler);
+      window.removeEventListener("keyup", handler);
+    };
+  }, []);
 
   useEffect(() => {
     if (!props.railwayMap) return;
@@ -64,6 +86,9 @@ export const RerailEditor = (props: RerailEditorProps) => {
     const renderInfo = railwayMap.render(
       viewport,
       state.selectedRailId === null ? undefined : state.selectedRailId,
+      state.skipNearestSegment && state.skipNearestSegment.clone(),
+      state.mouseX,
+      state.mouseY,
     );
 
     const canvas = canvasRef.current!;
@@ -75,35 +100,113 @@ export const RerailEditor = (props: RerailEditorProps) => {
     setState((state) => {
       return { ...state, railwayList };
     });
-  }, [props, state.canvasHeight, state.canvasWidth, state.selectedRailId]);
+  }, [
+    props,
+    state.canvasHeight,
+    state.canvasWidth,
+    state.selectedRailId,
+    state.skipNearestSegment,
+    state.mouseX,
+    state.mouseY,
+  ]);
 
   const canvasMouseDownHandler = (
     e: React.MouseEvent<HTMLCanvasElement, MouseEvent>,
   ) => {
+    if (props.railwayMap === null) {
+      return;
+    }
+    if (state.editorMode !== "none") {
+      return;
+    }
+
     const x = e.clientX - (e.target as HTMLCanvasElement).offsetLeft;
     const y = e.clientY - (e.target as HTMLCanvasElement).offsetTop;
 
-    setClickPos({ mouseX: x, mouseY: y, topX: props.topX, topY: props.topY });
+    if (state.selectedRailId !== null && !isShiftKeyPressed.current) {
+      const viewport: Viewport = {
+        leftX: props.topX,
+        topY: props.topY,
+        height: state.canvasHeight,
+        width: state.canvasWidth,
+        zoom: zoomLevels[props.zoomLevel],
+      };
+      const nearest = props.railwayMap?.find_nearest_segment(
+        viewport,
+        state.selectedRailId,
+        x,
+        y,
+        10,
+      );
+      if (nearest) {
+        setState({
+          ...state,
+          editorMode: "point-moving",
+          skipNearestSegment: nearest,
+          mouseX: x,
+          mouseY: y,
+        });
+      }
+      return;
+    } else {
+      setState({
+        ...state,
+        editorMode: "viewport-moving",
+        mouseXOnMouseDown: x,
+        mouseYOnMouseDown: y,
+        topXOnMouseDown: props.topX,
+        topYOnMouseDown: props.topY,
+      });
+    }
   };
 
   const canvasMouseMoveHandler = (
     e: React.MouseEvent<HTMLCanvasElement, MouseEvent>,
   ) => {
-    if (clickPos === null) return;
-
     const x = e.clientX - (e.target as HTMLCanvasElement).offsetLeft;
     const y = e.clientY - (e.target as HTMLCanvasElement).offsetTop;
 
-    const zoom = zoomLevels[props.zoomLevel];
-    const newTopX = clickPos.topX + (clickPos.mouseX - x) * zoom;
-    const newTopY = clickPos.topY + (clickPos.mouseY - y) * zoom;
-    props.setViewport(newTopX, newTopY, props.zoomLevel);
+    if (state.editorMode === "viewport-moving") {
+      const zoom = zoomLevels[props.zoomLevel];
+      const newTopX =
+        state.topXOnMouseDown! + (state.mouseXOnMouseDown! - x) * zoom;
+      const newTopY =
+        state.topYOnMouseDown! + (state.mouseYOnMouseDown! - y) * zoom;
+      props.setViewport(newTopX, newTopY, props.zoomLevel);
+    } else if (state.editorMode === "point-moving") {
+      setState({
+        ...state,
+        mouseX: x,
+        mouseY: y,
+      });
+    }
   };
 
-  const canvasMouseUpHandler = () => setClickPos(null);
+  const canvasMouseUpHandler = () => {
+    if (state.editorMode === "viewport-moving") {
+      setState({
+        ...state,
+        editorMode: "none",
+        mouseXOnMouseDown: undefined,
+        mouseYOnMouseDown: undefined,
+        topXOnMouseDown: undefined,
+        topYOnMouseDown: undefined,
+      });
+    } else if (state.editorMode === "point-moving") {
+      setState({
+        ...state,
+        editorMode: "none",
+        skipNearestSegment: undefined,
+        mouseX: undefined,
+        mouseY: undefined,
+      });
+    }
+  };
 
   const canvasWheelHandler = (e: React.WheelEvent) => {
-    if (clickPos !== null) return;
+    if (state.editorMode !== "none") {
+      return;
+    }
 
     const x = e.clientX - (e.target as HTMLCanvasElement).offsetLeft;
     const y = e.clientY - (e.target as HTMLCanvasElement).offsetTop;
@@ -169,6 +272,13 @@ export const RerailEditor = (props: RerailEditorProps) => {
     });
   };
 
+  let cursor = "none";
+  if (state.editorMode === "viewport-moving") {
+    cursor = "move";
+  } else if (state.editorMode === "point-moving") {
+    cursor = "pointer";
+  }
+
   return (
     <div
       ref={entireContainerRef}
@@ -224,7 +334,7 @@ export const RerailEditor = (props: RerailEditorProps) => {
           onWheel={canvasWheelHandler}
           style={{
             verticalAlign: "top",
-            ...(clickPos !== null ? { cursor: "move" } : {}),
+            ...(state.editorMode !== "none" ? { cursor } : {}),
           }}
         />
       </div>

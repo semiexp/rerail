@@ -1,4 +1,4 @@
-import { ViewportRailwayList } from "../rerail-internal/pkg/rerail_internal";
+import { ViewportRailwayList } from "./RerailMap";
 
 type RailwayListViewerProps = {
   railwayList: ViewportRailwayList;

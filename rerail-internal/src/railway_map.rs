@@ -270,6 +270,20 @@ impl RerailMap {
         crate::loader::load_legacy_railmap_file(&mut data).unwrap()
     }
 
+    pub fn insert_railway_point(&mut self, railway_id: usize, i: usize, x: i32, y: i32) {
+        self.railways[railway_id].as_mut().unwrap().points.insert(
+            i,
+            RailwayPoint {
+                coord: Coord::new(x, y),
+                station: None,
+            },
+        )
+    }
+
+    pub fn move_railway_point(&mut self, railway_id: usize, i: usize, x: i32, y: i32) {
+        self.railways[railway_id].as_mut().unwrap().points[i].coord = Coord::new(x, y);
+    }
+
     pub fn railways_in_viewport(&self, viewport: JsViewport) -> ViewportRailwayList {
         let viewport: ViewportSpec = serde_wasm_bindgen::from_value(viewport.into()).unwrap();
         let viewport = Viewport::new(viewport);

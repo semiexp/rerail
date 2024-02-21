@@ -4,7 +4,7 @@ import {
   Viewport,
   ViewportRailwayList,
   NearestSegment,
-} from "../rerail-internal/pkg/rerail_internal";
+} from "./RerailMap";
 import { renderMap } from "./renderer";
 import { RailwayListViewer } from "./RailwayListViewer";
 
@@ -13,6 +13,7 @@ type RerailEditorProps = {
   topY: number;
   zoomLevel: number;
   setViewport: (x: number, y: number, zoomLevel: number) => void;
+  setRailwayMap: (map: RerailMap) => void;
   railwayMap: RerailMap | null;
 };
 
@@ -96,7 +97,7 @@ export const RerailEditor = (props: RerailEditorProps) => {
 
     renderMap(ctx, state.canvasWidth, state.canvasHeight, renderInfo);
 
-    const railwayList = railwayMap.railways_in_viewport(viewport);
+    const railwayList = railwayMap.railwaysInViewport(viewport);
     setState((state) => {
       return { ...state, railwayList };
     });
@@ -131,7 +132,7 @@ export const RerailEditor = (props: RerailEditorProps) => {
         width: state.canvasWidth,
         zoom: zoomLevels[props.zoomLevel],
       };
-      const nearest = props.railwayMap?.find_nearest_segment(
+      const nearest = props.railwayMap?.findNearestSegment(
         viewport,
         state.selectedRailId,
         x,
@@ -193,6 +194,29 @@ export const RerailEditor = (props: RerailEditorProps) => {
         topYOnMouseDown: undefined,
       });
     } else if (state.editorMode === "point-moving") {
+      const x = state.mouseX! * zoomLevels[props.zoomLevel] + props.topX;
+      const y = state.mouseY! * zoomLevels[props.zoomLevel] + props.topY;
+
+      const map = props.railwayMap!;
+      if (state.skipNearestSegment!.idx1) {
+        props.setRailwayMap(
+          map.insertRailwayPoint(
+            state.selectedRailId!,
+            state.skipNearestSegment!.idx0 + 1,
+            x,
+            y,
+          ),
+        );
+      } else {
+        props.setRailwayMap(
+          map.moveRailwayPoint(
+            state.selectedRailId!,
+            state.skipNearestSegment!.idx0,
+            x,
+            y,
+          ),
+        );
+      }
       setState({
         ...state,
         editorMode: "none",

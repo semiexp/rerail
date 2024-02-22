@@ -6,12 +6,14 @@ import {
   Viewport,
   NearestSegment,
   RenderingInfo,
+  RenderingOptions,
 } from "../rerail-internal/pkg/rerail_internal";
 export type {
   Viewport,
   ViewportRailwayList,
   NearestSegment,
   RenderingInfo,
+  RenderingOptions,
 } from "../rerail-internal/pkg/rerail_internal";
 
 await init_wasm();
@@ -35,20 +37,8 @@ export class RerailMap {
     return this._data;
   }
 
-  render(
-    viewport: Viewport,
-    selectedRailId?: number,
-    skipNearestSegment?: NearestSegment,
-    mouseX?: number,
-    mouseY?: number,
-  ): RenderingInfo {
-    return this.data.render(
-      viewport,
-      selectedRailId,
-      skipNearestSegment,
-      mouseX,
-      mouseY,
-    );
+  render(viewport: Viewport, opts: RenderingOptions): RenderingInfo {
+    return this.data.render(viewport, opts);
   }
 
   railwaysInViewport(viewport: Viewport): ViewportRailwayList {

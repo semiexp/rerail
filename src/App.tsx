@@ -2,11 +2,22 @@ import { ChangeEvent, useRef, useState } from "react";
 import { RerailMap } from "./RerailMap";
 import { RerailEditor } from "./RerailEditor";
 
+import ToggleButton from "@mui/material/ToggleButton";
+import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
+import iconMove from "./assets/move.svg";
+import iconRailway from "./assets/railway.svg";
+import iconStation from "./assets/station.svg";
+import { ButtonGroup, IconButton } from "@mui/material";
+import { FileOpen } from "@mui/icons-material";
+
+type EditorMode = "move" | "railway" | "station";
+
 type RerailAppState = {
   viewportTopX: number;
   viewportTopY: number;
   viewportZoomLevel: number;
   railwayMap: RerailMap | null;
+  editorMode: EditorMode;
 };
 
 function App() {
@@ -15,6 +26,7 @@ function App() {
     viewportTopY: 1000000000,
     viewportZoomLevel: 5,
     railwayMap: null,
+    editorMode: "move",
   });
 
   const fileElementRef = useRef<HTMLInputElement>(null);
@@ -46,24 +58,74 @@ function App() {
         padding: 0,
       }}
     >
-      <div style={{ width: "100%" }}>
-        <input
-          type="button"
-          value="Open"
-          onClick={() => fileElementRef.current!.click()}
-        />
+      <div
+        style={{
+          width: "100%",
+          backgroundColor: "#eeeeee",
+          borderBottomWidth: "3px",
+          borderBottomStyle: "solid",
+          borderBottomColor: "#333333",
+          display: "flex",
+        }}
+      >
         <input
           type="file"
           ref={fileElementRef}
           onChange={fileHandler}
           style={{ display: "none" }}
         />
+        <ButtonGroup>
+          <IconButton
+            size="small"
+            onClick={() => fileElementRef.current!.click()}
+          >
+            <FileOpen />
+          </IconButton>
+        </ButtonGroup>
+        <div
+          style={{
+            width: "1px",
+            backgroundColor: "#888888",
+            marginLeft: "5px",
+            marginRight: "5px",
+          }}
+        />
+        <ToggleButtonGroup value={appState.editorMode}>
+          <ToggleButton
+            value="move"
+            size="small"
+            sx={{ padding: 0.2 }}
+            onClick={() => setAppState({ ...appState, editorMode: "move" })}
+            disableRipple
+          >
+            <img src={iconMove} height={24} />
+          </ToggleButton>
+          <ToggleButton
+            value="railway"
+            size="small"
+            sx={{ padding: 0.2 }}
+            onClick={() => setAppState({ ...appState, editorMode: "railway" })}
+            disableRipple
+          >
+            <img src={iconRailway} height={24} />
+          </ToggleButton>
+          <ToggleButton
+            value="station"
+            size="medium"
+            sx={{ padding: 0.2 }}
+            onClick={() => setAppState({ ...appState, editorMode: "station" })}
+            disableRipple
+          >
+            <img src={iconStation} height={24} />
+          </ToggleButton>
+        </ToggleButtonGroup>
       </div>
       <div style={{ flex: 1, overflow: "hidden" }}>
         <RerailEditor
           topX={appState.viewportTopX}
           topY={appState.viewportTopY}
           zoomLevel={appState.viewportZoomLevel}
+          editorMode={appState.editorMode}
           setViewport={(x, y, zoomLevel) =>
             setAppState({
               ...appState,

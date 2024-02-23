@@ -8,23 +8,26 @@ import {
 import { renderMap } from "./renderer";
 import { RailwayListViewer } from "./RailwayListViewer";
 
+type EditorMode = "move" | "railway" | "station";
+
 type RerailEditorProps = {
   topX: number;
   topY: number;
   zoomLevel: number;
+  editorMode: EditorMode;
   setViewport: (x: number, y: number, zoomLevel: number) => void;
   setRailwayMap: (map: RerailMap) => void;
   railwayMap: RerailMap | null;
 };
 
-type EditorMode = "none" | "viewport-moving" | "point-moving";
+type EditorPhase = "none" | "viewport-moving" | "point-moving";
 
 type RerailEditorStateType = {
   canvasHeight: number;
   canvasWidth: number;
   railwayList: ViewportRailwayList | null;
   selectedRailId: number | null;
-  editorMode: EditorMode;
+  editorPhase: EditorPhase;
 
   // viewport-moving
   mouseXOnMouseDown?: number;
@@ -42,7 +45,7 @@ const initialRerailEditorState: RerailEditorStateType = {
   canvasWidth: 100,
   railwayList: null,
   selectedRailId: null,
-  editorMode: "none",
+  editorPhase: "none",
 };
 
 const zoomLevels = [
@@ -114,14 +117,32 @@ export const RerailEditor = (props: RerailEditorProps) => {
     if (props.railwayMap === null) {
       return;
     }
-    if (state.editorMode !== "none") {
+    if (state.editorPhase !== "none") {
       return;
     }
 
     const x = e.clientX - (e.target as HTMLCanvasElement).offsetLeft;
     const y = e.clientY - (e.target as HTMLCanvasElement).offsetTop;
 
-    if (state.selectedRailId !== null && !isShiftKeyPressed.current) {
+    const editorMode = props.editorMode;
+    const transitionToViewportMoving =
+      editorMode === "move" || isShiftKeyPressed.current;
+    const transitionToPointMoving =
+      !transitionToViewportMoving &&
+      editorMode === "railway" &&
+      state.selectedRailId !== null;
+
+    if (transitionToViewportMoving) {
+      setState({
+        ...state,
+        editorPhase: "viewport-moving",
+        mouseXOnMouseDown: x,
+        mouseYOnMouseDown: y,
+        topXOnMouseDown: props.topX,
+        topYOnMouseDown: props.topY,
+      });
+    }
+    if (transitionToPointMoving) {
       const viewport: Viewport = {
         leftX: props.topX,
         topY: props.topY,
@@ -131,7 +152,7 @@ export const RerailEditor = (props: RerailEditorProps) => {
       };
       const nearest = props.railwayMap?.findNearestSegment(
         viewport,
-        state.selectedRailId,
+        state.selectedRailId!,
         x,
         y,
         10,
@@ -139,21 +160,11 @@ export const RerailEditor = (props: RerailEditorProps) => {
       if (nearest) {
         setState({
           ...state,
-          editorMode: "point-moving",
+          editorPhase: "point-moving",
           skipNearestSegment: nearest,
           mouse: { x, y },
         });
       }
-      return;
-    } else {
-      setState({
-        ...state,
-        editorMode: "viewport-moving",
-        mouseXOnMouseDown: x,
-        mouseYOnMouseDown: y,
-        topXOnMouseDown: props.topX,
-        topYOnMouseDown: props.topY,
-      });
     }
   };
 
@@ -163,14 +174,14 @@ export const RerailEditor = (props: RerailEditorProps) => {
     const x = e.clientX - (e.target as HTMLCanvasElement).offsetLeft;
     const y = e.clientY - (e.target as HTMLCanvasElement).offsetTop;
 
-    if (state.editorMode === "viewport-moving") {
+    if (state.editorPhase === "viewport-moving") {
       const zoom = zoomLevels[props.zoomLevel];
       const newTopX =
         state.topXOnMouseDown! + (state.mouseXOnMouseDown! - x) * zoom;
       const newTopY =
         state.topYOnMouseDown! + (state.mouseYOnMouseDown! - y) * zoom;
       props.setViewport(newTopX, newTopY, props.zoomLevel);
-    } else if (state.editorMode === "point-moving") {
+    } else if (state.editorPhase === "point-moving") {
       setState({
         ...state,
         mouse: { x, y },
@@ -179,16 +190,16 @@ export const RerailEditor = (props: RerailEditorProps) => {
   };
 
   const canvasMouseUpHandler = () => {
-    if (state.editorMode === "viewport-moving") {
+    if (state.editorPhase === "viewport-moving") {
       setState({
         ...state,
-        editorMode: "none",
+        editorPhase: "none",
         mouseXOnMouseDown: undefined,
         mouseYOnMouseDown: undefined,
         topXOnMouseDown: undefined,
         topYOnMouseDown: undefined,
       });
-    } else if (state.editorMode === "point-moving") {
+    } else if (state.editorPhase === "point-moving") {
       const x = state.mouse!.x * zoomLevels[props.zoomLevel] + props.topX;
       const y = state.mouse!.y * zoomLevels[props.zoomLevel] + props.topY;
 
@@ -214,7 +225,7 @@ export const RerailEditor = (props: RerailEditorProps) => {
       }
       setState({
         ...state,
-        editorMode: "none",
+        editorPhase: "none",
         skipNearestSegment: undefined,
         mouse: undefined,
       });
@@ -222,7 +233,7 @@ export const RerailEditor = (props: RerailEditorProps) => {
   };
 
   const canvasWheelHandler = (e: React.WheelEvent) => {
-    if (state.editorMode !== "none") {
+    if (state.editorPhase !== "none") {
       return;
     }
 
@@ -291,9 +302,9 @@ export const RerailEditor = (props: RerailEditorProps) => {
   };
 
   let cursor = "none";
-  if (state.editorMode === "viewport-moving") {
+  if (state.editorPhase === "viewport-moving") {
     cursor = "move";
-  } else if (state.editorMode === "point-moving") {
+  } else if (state.editorPhase === "point-moving") {
     cursor = "pointer";
   }
 
@@ -352,7 +363,7 @@ export const RerailEditor = (props: RerailEditorProps) => {
           onWheel={canvasWheelHandler}
           style={{
             verticalAlign: "top",
-            ...(state.editorMode !== "none" ? { cursor } : {}),
+            ...(state.editorPhase !== "none" ? { cursor } : {}),
           }}
         />
       </div>

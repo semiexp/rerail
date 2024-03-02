@@ -2,6 +2,7 @@ use wasm_bindgen::prelude::*;
 
 use serde::{Deserialize, Serialize};
 use std::ops::{Index, IndexMut};
+use tsify::Tsify;
 
 pub use crate::geom::Coord;
 use crate::geom::{
@@ -122,41 +123,8 @@ pub struct ViewportRailwayList {
     pub rail_ids: Vec<usize>,
 }
 
-#[wasm_bindgen(typescript_custom_section)]
-const VIEWPORT: &'static str = r#"
-export type Viewport = {
-  leftX: number,
-  topY: number,
-  width: number,
-  height: number,
-  zoom: number,
-};
-
-export type NearestSegment = {
-  index: number,
-  betweenPoints: boolean,
-};
-
-export type RenderingOptions = {
-  selectedRailId?: number,
-  skipNearestSegment?: NearestSegment,
-  mouse?: { x: number, y: number },
-};
-"#;
-
-#[wasm_bindgen]
-extern "C" {
-    #[wasm_bindgen(typescript_type = "Viewport")]
-    pub type JsViewport;
-
-    #[wasm_bindgen(typescript_type = "NearestSegment")]
-    pub type JsNearestSegment;
-
-    #[wasm_bindgen(typescript_type = "RenderingOptions")]
-    pub type JsRenderingOptions;
-}
-
-#[derive(Serialize, Deserialize)]
+#[derive(Tsify, Serialize, Deserialize)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
 pub struct ViewportSpec {
     #[serde(rename = "leftX")]
     left_x: i32,
@@ -167,7 +135,8 @@ pub struct ViewportSpec {
     zoom: i32,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Tsify, Serialize, Deserialize)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
 pub struct RenderingOptions {
     #[serde(rename = "selectedRailId")]
     selected_rail_id: Option<usize>,
@@ -244,7 +213,8 @@ impl Viewport {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Tsify, Serialize, Deserialize)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
 pub struct NearestSegment {
     index: usize,
     #[serde(rename = "betweenPoints")]
@@ -311,8 +281,7 @@ impl RerailMap {
         self.railways[railway_id].as_mut().unwrap().points[i].coord = Coord::new(x, y);
     }
 
-    pub fn railways_in_viewport(&self, viewport: JsViewport) -> ViewportRailwayList {
-        let viewport: ViewportSpec = serde_wasm_bindgen::from_value(viewport.into()).unwrap();
+    pub fn railways_in_viewport(&self, viewport: ViewportSpec) -> ViewportRailwayList {
         let viewport = Viewport::new(viewport);
 
         let mut rail_names = vec![];
@@ -344,8 +313,7 @@ impl RerailMap {
         }
     }
 
-    pub fn render(&self, viewport: JsViewport, opts: JsRenderingOptions) -> RenderingInfo {
-        let viewport: ViewportSpec = serde_wasm_bindgen::from_value(viewport.into()).unwrap();
+    pub fn render(&self, viewport: ViewportSpec, opts: RenderingOptions) -> RenderingInfo {
         let viewport = Viewport::new(viewport);
 
         let mut rail_colors = vec![];
@@ -355,8 +323,6 @@ impl RerailMap {
         let mut stations = vec![];
 
         let mut marker_points = vec![];
-
-        let opts: RenderingOptions = serde_wasm_bindgen::from_value(opts.into()).unwrap();
 
         let mut selected_railway_points = vec![];
         if let Some(id) = opts.selected_rail_id {
@@ -527,13 +493,12 @@ impl RerailMap {
 
     pub fn find_nearest_segment(
         &self,
-        viewport: JsViewport,
+        viewport: ViewportSpec,
         rail_id: usize,
         x: i32,
         y: i32,
         max_dist: i32,
-    ) -> Option<JsNearestSegment> {
-        let viewport: ViewportSpec = serde_wasm_bindgen::from_value(viewport.into()).unwrap();
+    ) -> Option<NearestSegment> {
         let viewport = Viewport::new(viewport);
         let p = Coord::new(x, y);
 
@@ -560,13 +525,10 @@ impl RerailMap {
                 }
 
                 if nearest.0 <= threshold {
-                    return Some(JsNearestSegment::from(
-                        serde_wasm_bindgen::to_value(&NearestSegment {
-                            index: nearest.1,
-                            between_points: false,
-                        })
-                        .unwrap(),
-                    ));
+                    return Some(NearestSegment {
+                        index: nearest.1,
+                        between_points: false,
+                    });
                 }
 
                 let mut nearest = (threshold + 1, 0);
@@ -585,13 +547,10 @@ impl RerailMap {
                 }
 
                 if nearest.0 <= threshold {
-                    return Some(JsNearestSegment::from(
-                        serde_wasm_bindgen::to_value(&NearestSegment {
-                            index: nearest.1 - 1,
-                            between_points: true,
-                        })
-                        .unwrap(),
-                    ));
+                    return Some(NearestSegment {
+                        index: nearest.1 - 1,
+                        between_points: true,
+                    });
                 } else {
                     return None;
                 }

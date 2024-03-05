@@ -1,4 +1,5 @@
 import init_wasm, {
+  StationInfo,
   ViewportRailwayList,
 } from "../rerail-internal/pkg/rerail_internal";
 import {
@@ -76,6 +77,21 @@ export class RerailMap {
     let data = this.data;
     this._data = undefined;
     data.move_railway_point(railwayId, i, x, y);
+    return new RerailMap(data);
+  }
+
+  getStationInfo(railwayId: number, pointIdx: number): StationInfo | undefined {
+    return this.data.get_station_info(railwayId, pointIdx);
+  }
+
+  setStationInfo(
+    railwayId: number,
+    pointIdx: number,
+    stationInfo: StationInfo,
+  ): RerailMap {
+    let data = this.data;
+    this._data = undefined;
+    data.set_station_info(railwayId, pointIdx, stationInfo);
     return new RerailMap(data);
   }
 }

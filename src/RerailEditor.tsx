@@ -7,6 +7,7 @@ import {
 } from "./RerailMap";
 import { renderMap } from "./renderer";
 import { RailwayListViewer } from "./RailwayListViewer";
+import { StationDialog, StationDialogRefType } from "./Dialogs";
 
 type EditorMode = "move" | "railway" | "station";
 
@@ -56,6 +57,7 @@ export const RerailEditor = (props: RerailEditorProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const entireContainerRef = useRef<HTMLDivElement>(null);
   const canvasContainerRef = useRef<HTMLDivElement>(null);
+  const stationDialogRef = useRef<StationDialogRefType>(null);
 
   const [state, setState] = useState<RerailEditorStateType>(
     initialRerailEditorState,
@@ -111,7 +113,7 @@ export const RerailEditor = (props: RerailEditorProps) => {
     state.mouse,
   ]);
 
-  const canvasMouseDownHandler = (
+  const canvasMouseDownHandler = async (
     e: React.MouseEvent<HTMLCanvasElement, MouseEvent>,
   ) => {
     if (props.railwayMap === null) {
@@ -131,6 +133,10 @@ export const RerailEditor = (props: RerailEditorProps) => {
       !transitionToViewportMoving &&
       editorMode === "railway" &&
       state.selectedRailId !== null;
+    const maybeOpenStationEditor =
+      editorMode === "station" &&
+      !transitionToViewportMoving &&
+      !transitionToPointMoving;
 
     if (transitionToViewportMoving) {
       setState({
@@ -164,6 +170,42 @@ export const RerailEditor = (props: RerailEditorProps) => {
           skipNearestSegment: nearest,
           mouse: { x, y },
         });
+      }
+    }
+    if (maybeOpenStationEditor) {
+      const viewport: ViewportSpec = {
+        leftX: props.topX,
+        topY: props.topY,
+        height: state.canvasHeight,
+        width: state.canvasWidth,
+        zoom: zoomLevels[props.zoomLevel],
+      };
+      const nearest = props.railwayMap?.findNearestSegment(
+        viewport,
+        state.selectedRailId!,
+        x,
+        y,
+        10,
+      );
+      if (nearest && !nearest.betweenPoints) {
+        const index = nearest.index;
+        const stationInfo = props.railwayMap!.getStationInfo(
+          state.selectedRailId!,
+          index,
+        );
+        const stationValue = await stationDialogRef.current!.open(
+          stationInfo || { name: "" },
+        );
+        if (stationValue && stationValue.name !== "") {
+          const newStationInfo = { name: stationValue.name };
+          props.setRailwayMap(
+            props.railwayMap!.setStationInfo(
+              state.selectedRailId!,
+              index,
+              newStationInfo,
+            ),
+          );
+        }
       }
     }
   };
@@ -367,6 +409,7 @@ export const RerailEditor = (props: RerailEditorProps) => {
           }}
         />
       </div>
+      <StationDialog ref={stationDialogRef}></StationDialog>
     </div>
   );
 };

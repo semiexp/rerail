@@ -148,6 +148,12 @@ pub struct RenderingOptions {
     mouse: Option<PhysicalCoord>,
 }
 
+#[derive(Tsify, Serialize, Deserialize)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+pub struct StationInfo {
+    name: String,
+}
+
 #[derive(Clone, Copy, Serialize, Deserialize)]
 struct PhysicalCoord {
     x: i32,
@@ -560,6 +566,42 @@ impl RerailMap {
             }
         }
         None
+    }
+
+    pub fn get_station_info(&self, rail_id: usize, point_idx: usize) -> Option<StationInfo> {
+        for railway in &self.railways {
+            if let Some(railway) = railway {
+                if railway.unique_id != rail_id {
+                    continue;
+                }
+                if let Some(station_idx) = railway.points[point_idx].station {
+                    let station = &self[station_idx];
+                    return Some(StationInfo {
+                        name: station.name.clone(),
+                    });
+                }
+            }
+        }
+        None
+    }
+
+    pub fn set_station_info(&mut self, rail_id: usize, point_idx: usize, info: StationInfo) {
+        for railway in &mut self.railways {
+            if let Some(railway) = railway {
+                if railway.unique_id != rail_id {
+                    continue;
+                }
+                if let Some(station_idx) = railway.points[point_idx].station {
+                    self[station_idx].name = info.name;
+                } else {
+                    let station_idx = StationIndex(self.stations.len());
+                    self.stations.push(Some(Station::new(info.name)));
+                    railway.points[point_idx].station = Some(station_idx);
+                    self[station_idx].add_railway(RailwayIndex(rail_id));
+                }
+                break;
+            }
+        }
     }
 }
 

@@ -138,10 +138,13 @@ pub struct ViewportSpec {
 #[derive(Tsify, Serialize, Deserialize)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
 pub struct RenderingOptions {
+    #[tsify(optional)]
     #[serde(rename = "selectedRailId")]
     selected_rail_id: Option<usize>,
+    #[tsify(optional)]
     #[serde(rename = "skipNearestSegment")]
     skip_nearest_segment: Option<NearestSegment>,
+    #[tsify(optional)]
     mouse: Option<PhysicalCoord>,
 }
 

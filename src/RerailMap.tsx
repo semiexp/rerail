@@ -3,13 +3,13 @@ import init_wasm, {
 } from "../rerail-internal/pkg/rerail_internal";
 import {
   RerailMap as InternalRerailMap,
-  Viewport,
+  ViewportSpec,
   NearestSegment,
   RenderingInfo,
   RenderingOptions,
 } from "../rerail-internal/pkg/rerail_internal";
 export type {
-  Viewport,
+  ViewportSpec,
   ViewportRailwayList,
   NearestSegment,
   RenderingInfo,
@@ -37,16 +37,16 @@ export class RerailMap {
     return this._data;
   }
 
-  render(viewport: Viewport, opts: RenderingOptions): RenderingInfo {
+  render(viewport: ViewportSpec, opts: RenderingOptions): RenderingInfo {
     return this.data.render(viewport, opts);
   }
 
-  railwaysInViewport(viewport: Viewport): ViewportRailwayList {
+  railwaysInViewport(viewport: ViewportSpec): ViewportRailwayList {
     return this.data.railways_in_viewport(viewport);
   }
 
   findNearestSegment(
-    viewport: Viewport,
+    viewport: ViewportSpec,
     railId: number,
     x: number,
     y: number,

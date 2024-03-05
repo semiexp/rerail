@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import {
   RerailMap,
-  Viewport,
+  ViewportSpec,
   ViewportRailwayList,
   NearestSegment,
 } from "./RerailMap";
@@ -78,7 +78,7 @@ export const RerailEditor = (props: RerailEditorProps) => {
   useEffect(() => {
     if (!props.railwayMap) return;
     const railwayMap = props.railwayMap;
-    const viewport: Viewport = {
+    const viewport: ViewportSpec = {
       leftX: props.topX,
       topY: props.topY,
       height: state.canvasHeight,
@@ -143,7 +143,7 @@ export const RerailEditor = (props: RerailEditorProps) => {
       });
     }
     if (transitionToPointMoving) {
-      const viewport: Viewport = {
+      const viewport: ViewportSpec = {
         leftX: props.topX,
         topY: props.topY,
         height: state.canvasHeight,

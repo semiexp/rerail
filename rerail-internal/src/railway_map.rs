@@ -277,7 +277,9 @@ impl RerailMap {
     }
 
     pub fn insert_railway_point(&mut self, railway_id: usize, i: usize, x: i32, y: i32) {
-        self.railways[railway_id].as_mut().unwrap().points.insert(
+        let railway =
+            RerailMap::find_railway_by_unique_id_mut(&mut self.railways, railway_id).unwrap();
+        railway.points.insert(
             i,
             RailwayPoint {
                 coord: Coord::new(x, y),
@@ -287,7 +289,9 @@ impl RerailMap {
     }
 
     pub fn move_railway_point(&mut self, railway_id: usize, i: usize, x: i32, y: i32) {
-        self.railways[railway_id].as_mut().unwrap().points[i].coord = Coord::new(x, y);
+        let railway =
+            RerailMap::find_railway_by_unique_id_mut(&mut self.railways, railway_id).unwrap();
+        railway.points[i].coord = Coord::new(x, y);
     }
 
     pub fn railways_in_viewport(&self, viewport: ViewportSpec) -> ViewportRailwayList {
@@ -335,28 +339,24 @@ impl RerailMap {
 
         let mut selected_railway_points = vec![];
         if let Some(id) = opts.selected_rail_id {
-            for railway in &self.railways {
-                if let Some(railway) = railway {
-                    if railway.unique_id != id {
-                        continue;
-                    }
-                    selected_railway_points = railway.points.clone();
+            if let Some(selected_railway) = RerailMap::find_railway_by_unique_id(&self.railways, id)
+            {
+                selected_railway_points = selected_railway.points.clone();
 
-                    if let (Some(skip_nearest_segment), Some(mouse_coord)) =
-                        (&opts.skip_nearest_segment, opts.mouse)
-                    {
-                        let mouse_coord = viewport.from_physical_point(mouse_coord);
-                        if skip_nearest_segment.between_points {
-                            selected_railway_points.insert(
-                                skip_nearest_segment.index + 1,
-                                RailwayPoint {
-                                    coord: mouse_coord,
-                                    station: None,
-                                },
-                            );
-                        } else {
-                            selected_railway_points[skip_nearest_segment.index].coord = mouse_coord;
-                        }
+                if let (Some(skip_nearest_segment), Some(mouse_coord)) =
+                    (&opts.skip_nearest_segment, opts.mouse)
+                {
+                    let mouse_coord = viewport.from_physical_point(mouse_coord);
+                    if skip_nearest_segment.between_points {
+                        selected_railway_points.insert(
+                            skip_nearest_segment.index + 1,
+                            RailwayPoint {
+                                coord: mouse_coord,
+                                station: None,
+                            },
+                        );
+                    } else {
+                        selected_railway_points[skip_nearest_segment.index].coord = mouse_coord;
                     }
                 }
             }
@@ -513,95 +513,113 @@ impl RerailMap {
 
         let threshold = max_dist as i64 * max_dist as i64;
 
-        for railway in &self.railways {
-            if let Some(railway) = railway {
-                if railway.unique_id != rail_id {
-                    continue;
-                }
+        let railway = RerailMap::find_railway_by_unique_id(&self.railways, rail_id)?;
 
-                let mut nearest = (threshold + 1, 0);
+        let mut nearest = (threshold + 1, 0);
 
-                for i in 0..railway.points.len() {
-                    let d = distance_norm_square_points(
-                        viewport
-                            .to_physical_point(railway.points[i].coord)
-                            .as_coord(),
-                        p,
-                    );
-                    if d < nearest.0 {
-                        nearest = (d, i);
-                    }
-                }
-
-                if nearest.0 <= threshold {
-                    return Some(NearestSegment {
-                        index: nearest.1,
-                        between_points: false,
-                    });
-                }
-
-                let mut nearest = (threshold + 1, 0);
-
-                for i in 1..railway.points.len() {
-                    let c0 = viewport
-                        .to_physical_point(railway.points[i - 1].coord)
-                        .as_coord();
-                    let c1 = viewport
-                        .to_physical_point(railway.points[i].coord)
-                        .as_coord();
-                    let d = distance_norm_square_point_line_segment(c0, c1, p);
-                    if d < nearest.0 {
-                        nearest = (d, i);
-                    }
-                }
-
-                if nearest.0 <= threshold {
-                    return Some(NearestSegment {
-                        index: nearest.1 - 1,
-                        between_points: true,
-                    });
-                } else {
-                    return None;
-                }
+        for i in 0..railway.points.len() {
+            let d = distance_norm_square_points(
+                viewport
+                    .to_physical_point(railway.points[i].coord)
+                    .as_coord(),
+                p,
+            );
+            if d < nearest.0 {
+                nearest = (d, i);
             }
         }
-        None
+
+        if nearest.0 <= threshold {
+            return Some(NearestSegment {
+                index: nearest.1,
+                between_points: false,
+            });
+        }
+
+        let mut nearest = (threshold + 1, 0);
+
+        for i in 1..railway.points.len() {
+            let c0 = viewport
+                .to_physical_point(railway.points[i - 1].coord)
+                .as_coord();
+            let c1 = viewport
+                .to_physical_point(railway.points[i].coord)
+                .as_coord();
+            let d = distance_norm_square_point_line_segment(c0, c1, p);
+            if d < nearest.0 {
+                nearest = (d, i);
+            }
+        }
+
+        if nearest.0 <= threshold {
+            Some(NearestSegment {
+                index: nearest.1 - 1,
+                between_points: true,
+            })
+        } else {
+            None
+        }
     }
 
     pub fn get_station_info(&self, rail_id: usize, point_idx: usize) -> Option<StationInfo> {
-        for railway in &self.railways {
-            if let Some(railway) = railway {
-                if railway.unique_id != rail_id {
-                    continue;
-                }
-                if let Some(station_idx) = railway.points[point_idx].station {
-                    let station = &self[station_idx];
-                    return Some(StationInfo {
-                        name: station.name.clone(),
-                    });
-                }
+        let railway = RerailMap::find_railway_by_unique_id(&self.railways, rail_id);
+        if let Some(railway) = railway {
+            if let Some(station_idx) = railway.points[point_idx].station {
+                let station = &self[station_idx];
+                return Some(StationInfo {
+                    name: station.name.clone(),
+                });
             }
         }
         None
     }
 
     pub fn set_station_info(&mut self, rail_id: usize, point_idx: usize, info: StationInfo) {
-        for railway in &mut self.railways {
-            if let Some(railway) = railway {
-                if railway.unique_id != rail_id {
-                    continue;
-                }
-                if let Some(station_idx) = railway.points[point_idx].station {
-                    self[station_idx].name = info.name;
-                } else {
-                    let station_idx = StationIndex(self.stations.len());
-                    self.stations.push(Some(Station::new(info.name)));
-                    railway.points[point_idx].station = Some(station_idx);
-                    self[station_idx].add_railway(RailwayIndex(rail_id));
-                }
-                break;
+        let railway = RerailMap::find_railway_by_unique_id_mut(&mut self.railways, rail_id);
+        if let Some(railway) = railway {
+            if let Some(station_idx) = railway.points[point_idx].station {
+                self[station_idx].name = info.name;
+            } else {
+                let station_idx = StationIndex(self.stations.len());
+                self.stations.push(Some(Station::new(info.name)));
+                railway.points[point_idx].station = Some(station_idx);
+                self[station_idx].add_railway(RailwayIndex(rail_id));
             }
         }
+    }
+
+    fn find_railway_by_unique_id<'a>(
+        railways: &'a [Option<Railway>],
+        unique_id: usize,
+    ) -> Option<&'a Railway> {
+        railways.iter().find_map(|railway| {
+            if let Some(railway) = railway {
+                if railway.unique_id == unique_id {
+                    Some(railway)
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        })
+    }
+
+    fn find_railway_by_unique_id_mut<'a>(
+        railways: &'a mut [Option<Railway>],
+        unique_id: usize,
+    ) -> Option<&'a mut Railway> {
+        railways.iter_mut().find_map(|railway| {
+            if let Some(railway) = railway {
+                if railway.unique_id == unique_id {
+                    Some(railway)
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        })
     }
 }
 

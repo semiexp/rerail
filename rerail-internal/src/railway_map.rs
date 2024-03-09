@@ -316,6 +316,10 @@ impl RerailMap {
 
         for i in 0..self.railways.len() {
             if let Some(railway) = &self.railways[i] {
+                if viewport.zoom > RAILWAY_THRESHOLD[railway.level as usize] {
+                    continue;
+                }
+
                 let mut is_displayed = false;
                 for j in 1..railway.points.len() {
                     if viewport.crosses_with_line_segment(

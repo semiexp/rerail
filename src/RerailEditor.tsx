@@ -12,6 +12,8 @@ import {
   RailwayDialogRefType,
   StationDialog,
   StationDialogRefType,
+  StationListDialog,
+  StationListDialogRefType,
 } from "./Dialogs";
 
 type EditorMode = "move" | "railway" | "station";
@@ -64,6 +66,7 @@ export const RerailEditor = (props: RerailEditorProps) => {
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   const stationDialogRef = useRef<StationDialogRefType>(null);
   const railwayDialogRef = useRef<RailwayDialogRefType>(null);
+  const stationListDialogRef = useRef<StationListDialogRefType>(null);
 
   const [state, setState] = useState<RerailEditorStateType>(
     initialRerailEditorState,
@@ -361,6 +364,15 @@ export const RerailEditor = (props: RerailEditorProps) => {
     props.setRailwayMap(railwayMap.setRailwayInfo(id, newRailwayInfo));
   };
 
+  const onOpenStationList = (id: number) => {
+    const railwayMap = props.railwayMap;
+    if (railwayMap === null) {
+      return;
+    }
+    const stationList = railwayMap.stationListOnRailway(id);
+    stationListDialogRef.current!.open(stationList);
+  };
+
   let cursor = "none";
   if (state.editorPhase === "viewport-moving") {
     cursor = "move";
@@ -397,6 +409,7 @@ export const RerailEditor = (props: RerailEditorProps) => {
             selectedId={state.selectedRailId}
             onSelect={onSelectRailway}
             onOpenRailwayConfig={onOpenRailwayConfig}
+            onOpenStationList={onOpenStationList}
           />
         )}
       </div>
@@ -431,6 +444,7 @@ export const RerailEditor = (props: RerailEditorProps) => {
       </div>
       <StationDialog ref={stationDialogRef}></StationDialog>
       <RailwayDialog ref={railwayDialogRef}></RailwayDialog>
+      <StationListDialog ref={stationListDialogRef}></StationListDialog>
     </div>
   );
 };

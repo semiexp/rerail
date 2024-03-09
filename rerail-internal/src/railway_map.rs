@@ -242,6 +242,12 @@ pub struct NearestSegment {
     between_points: bool,
 }
 
+#[wasm_bindgen(getter_with_clone)]
+pub struct StationListOnRailway {
+    pub names: Vec<String>,
+    pub distances: Vec<f64>,
+}
+
 const STATION_THRESHOLD: [[i32; 4]; 4] = [
     [20, 50, 50, 50],
     [50, 100, 200, 200],
@@ -673,6 +679,31 @@ impl RerailMap {
             b: ((info.color >> 0) & 255) as u8,
         };
         self
+    }
+
+    #[wasm_bindgen(js_name = stationListOnRailway)]
+    pub fn station_list_on_railway(&self, rail_id: usize) -> StationListOnRailway {
+        let railway = RerailMap::find_railway_by_unique_id(&self.railways, rail_id).unwrap();
+        let mut cur_distance = 0.0f64;
+        let mut names = vec![];
+        let mut distances = vec![];
+
+        for i in 0..railway.points.len() {
+            if i > 0 {
+                let dist_sq = distance_norm_square_points(
+                    railway.points[i - 1].coord,
+                    railway.points[i].coord,
+                );
+                cur_distance += (dist_sq as f64).sqrt();
+            }
+            if let Some(id) = railway.points[i].station {
+                let station = &self[id];
+                names.push(station.name.clone());
+                distances.push(cur_distance);
+            }
+        }
+
+        StationListOnRailway { names, distances }
     }
 
     fn find_railway_by_unique_id<'a>(

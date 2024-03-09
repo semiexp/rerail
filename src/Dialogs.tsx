@@ -10,7 +10,7 @@ import {
   TextField,
 } from "@mui/material";
 import { ChangeEvent, forwardRef, useImperativeHandle, useState } from "react";
-import { RailwayInfo, StationInfo } from "./RerailMap";
+import { RailwayInfo, StationInfo, StationListOnRailway } from "./RerailMap";
 import { MuiColorInput } from "mui-color-input";
 
 type StationDialogState = {
@@ -252,6 +252,86 @@ export const RailwayDialog = forwardRef((_props, ref) => {
           キャンセル
         </Button>
         <Button onClick={() => onClick(true)}>OK</Button>
+      </DialogActions>
+    </Dialog>
+  );
+});
+
+export type StationListDialogRefType = {
+  open: (initialValue: StationListOnRailway) => void;
+};
+
+export const StationListDialog = forwardRef((_props, ref) => {
+  const [stationList, setStationList] = useState<StationListOnRailway | null>(
+    null,
+  );
+
+  useImperativeHandle(
+    ref,
+    () => {
+      return {
+        open(s: StationListOnRailway) {
+          setStationList(s);
+        },
+      };
+    },
+    [],
+  );
+
+  let rows = [];
+  if (stationList !== null) {
+    const names = stationList.names;
+    const distances = stationList.distances;
+    for (let i = 0; i < names.length; ++i) {
+      rows.push(
+        <tr>
+          <td style={{ width: "70%", zIndex: 2 }}>{names[i]}</td>
+          <td style={{ width: "30%", zIndex: 2 }}>
+            {(distances[i] / 1000).toFixed(2)}
+          </td>
+        </tr>,
+      );
+    }
+  }
+
+  return (
+    <Dialog open={stationList !== null} fullWidth>
+      <DialogTitle>駅一覧</DialogTitle>
+      <DialogContent style={{ height: "100%" }}>
+        <table style={{ width: "100%" }} cellSpacing={0} border={1}>
+          <thead style={{ position: "sticky" }}>
+            <tr>
+              <th
+                style={{
+                  width: "70%",
+                  position: "sticky",
+                  top: 0,
+                  zIndex: 1,
+                  whiteSpace: "nowrap",
+                  backgroundColor: "#eeeeee",
+                }}
+              >
+                駅名
+              </th>
+              <th
+                style={{
+                  width: "30%",
+                  position: "sticky",
+                  top: 0,
+                  zIndex: 1,
+                  whiteSpace: "nowrap",
+                  backgroundColor: "#eeeeee",
+                }}
+              >
+                距離(km)
+              </th>
+            </tr>
+          </thead>
+          {rows}
+        </table>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={() => setStationList(null)}>閉じる</Button>
       </DialogActions>
     </Dialog>
   );

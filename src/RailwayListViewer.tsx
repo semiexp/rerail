@@ -7,6 +7,7 @@ type RailwayListViewerProps = {
   selectedId: number | null;
   onSelect: (id: number) => void;
   onOpenRailwayConfig: (id: number) => void;
+  onOpenStationList: (id: number) => void;
 };
 
 export const RailwayListViewer = (props: RailwayListViewerProps) => {
@@ -81,7 +82,16 @@ export const RailwayListViewer = (props: RailwayListViewerProps) => {
         >
           路線設定
         </MenuItem>
-        <MenuItem onClick={() => setContextMenu(null)}>駅一覧</MenuItem>
+        <MenuItem
+          onClick={() => {
+            if (contextMenu !== null) {
+              props.onOpenStationList(contextMenu.selectedRail);
+            }
+            setContextMenu(null);
+          }}
+        >
+          駅一覧
+        </MenuItem>
       </Menu>
     </div>
   );

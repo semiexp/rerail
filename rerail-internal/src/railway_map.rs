@@ -298,7 +298,14 @@ impl RerailMap {
         crate::loader::load_legacy_railmap_file(&mut data).unwrap()
     }
 
-    pub fn insert_railway_point(&mut self, railway_id: usize, i: usize, x: i32, y: i32) {
+    #[wasm_bindgen(js_name = insertRailwayPoint)]
+    pub fn insert_railway_point(
+        mut self,
+        railway_id: usize,
+        i: usize,
+        x: i32,
+        y: i32,
+    ) -> RerailMap {
         let railway =
             RerailMap::find_railway_by_unique_id_mut(&mut self.railways, railway_id).unwrap();
         railway.points.insert(
@@ -307,15 +314,19 @@ impl RerailMap {
                 coord: Coord::new(x, y),
                 station: None,
             },
-        )
+        );
+        self
     }
 
-    pub fn move_railway_point(&mut self, railway_id: usize, i: usize, x: i32, y: i32) {
+    #[wasm_bindgen(js_name = moveRailwayPoint)]
+    pub fn move_railway_point(mut self, railway_id: usize, i: usize, x: i32, y: i32) -> RerailMap {
         let railway =
             RerailMap::find_railway_by_unique_id_mut(&mut self.railways, railway_id).unwrap();
         railway.points[i].coord = Coord::new(x, y);
+        self
     }
 
+    #[wasm_bindgen(js_name = railwaysInViewport)]
     pub fn railways_in_viewport(&self, viewport: ViewportSpec) -> ViewportRailwayList {
         let viewport = Viewport::new(viewport);
 
@@ -538,6 +549,7 @@ impl RerailMap {
         }
     }
 
+    #[wasm_bindgen(js_name = findNearestSegment)]
     pub fn find_nearest_segment(
         &self,
         viewport: ViewportSpec,
@@ -599,6 +611,7 @@ impl RerailMap {
         }
     }
 
+    #[wasm_bindgen(js_name = getStationInfo)]
     pub fn get_station_info(&self, rail_id: usize, point_idx: usize) -> Option<StationInfo> {
         let railway = RerailMap::find_railway_by_unique_id(&self.railways, rail_id);
         if let Some(railway) = railway {
@@ -613,7 +626,13 @@ impl RerailMap {
         None
     }
 
-    pub fn set_station_info(&mut self, rail_id: usize, point_idx: usize, info: StationInfo) {
+    #[wasm_bindgen(js_name = setStationInfo)]
+    pub fn set_station_info(
+        mut self,
+        rail_id: usize,
+        point_idx: usize,
+        info: StationInfo,
+    ) -> RerailMap {
         let railway = RerailMap::find_railway_by_unique_id_mut(&mut self.railways, rail_id);
         if let Some(railway) = railway {
             if let Some(station_idx) = railway.points[point_idx].station {
@@ -627,8 +646,10 @@ impl RerailMap {
                 self[station_idx].add_railway(RailwayIndex(rail_id));
             }
         }
+        self
     }
 
+    #[wasm_bindgen(js_name = getRailwayInfo)]
     pub fn get_railway_info(&self, rail_id: usize) -> RailwayInfo {
         let railway = RerailMap::find_railway_by_unique_id(&self.railways, rail_id).unwrap();
         RailwayInfo {
@@ -640,7 +661,8 @@ impl RerailMap {
         }
     }
 
-    pub fn set_railway_info(&mut self, rail_id: usize, info: RailwayInfo) {
+    #[wasm_bindgen(js_name = setRailwayInfo)]
+    pub fn set_railway_info(mut self, rail_id: usize, info: RailwayInfo) -> RerailMap {
         let railway =
             RerailMap::find_railway_by_unique_id_mut(&mut self.railways, rail_id).unwrap();
         railway.name = info.name;
@@ -650,6 +672,7 @@ impl RerailMap {
             g: ((info.color >> 8) & 255) as u8,
             b: ((info.color >> 0) & 255) as u8,
         };
+        self
     }
 
     fn find_railway_by_unique_id<'a>(

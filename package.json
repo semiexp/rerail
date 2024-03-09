@@ -16,6 +16,7 @@
     "@emotion/styled": "^11.11.0",
     "@mui/icons-material": "^5.15.10",
     "@mui/material": "^5.15.10",
+    "mui-color-input": "^2.0.3",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "vite-plugin-top-level-await": "^1.4.1",

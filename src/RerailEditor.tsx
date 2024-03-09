@@ -7,7 +7,12 @@ import {
 } from "./RerailMap";
 import { renderMap } from "./renderer";
 import { RailwayListViewer } from "./RailwayListViewer";
-import { StationDialog, StationDialogRefType } from "./Dialogs";
+import {
+  RailwayDialog,
+  RailwayDialogRefType,
+  StationDialog,
+  StationDialogRefType,
+} from "./Dialogs";
 
 type EditorMode = "move" | "railway" | "station";
 
@@ -58,6 +63,7 @@ export const RerailEditor = (props: RerailEditorProps) => {
   const entireContainerRef = useRef<HTMLDivElement>(null);
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   const stationDialogRef = useRef<StationDialogRefType>(null);
+  const railwayDialogRef = useRef<RailwayDialogRefType>(null);
 
   const [state, setState] = useState<RerailEditorStateType>(
     initialRerailEditorState,
@@ -342,6 +348,19 @@ export const RerailEditor = (props: RerailEditorProps) => {
     });
   };
 
+  const onOpenRailwayConfig = async (id: number) => {
+    const railwayMap = props.railwayMap;
+    if (railwayMap === null) {
+      return;
+    }
+    const railwayInfo = railwayMap.getRailwayInfo(id);
+    const newRailwayInfo = await railwayDialogRef.current!.open(railwayInfo);
+    if (newRailwayInfo === undefined) {
+      return;
+    }
+    props.setRailwayMap(railwayMap.setRailwayInfo(id, newRailwayInfo));
+  };
+
   let cursor = "none";
   if (state.editorPhase === "viewport-moving") {
     cursor = "move";
@@ -370,12 +389,14 @@ export const RerailEditor = (props: RerailEditorProps) => {
           height: "100%",
           backgroundColor: "#eeeeee",
         }}
+        onContextMenu={(e) => e.preventDefault()}
       >
         {state.railwayList && (
           <RailwayListViewer
             railwayList={state.railwayList}
             selectedId={state.selectedRailId}
             onSelect={onSelectRailway}
+            onOpenRailwayConfig={onOpenRailwayConfig}
           />
         )}
       </div>
@@ -409,6 +430,7 @@ export const RerailEditor = (props: RerailEditorProps) => {
         />
       </div>
       <StationDialog ref={stationDialogRef}></StationDialog>
+      <RailwayDialog ref={railwayDialogRef}></RailwayDialog>
     </div>
   );
 };

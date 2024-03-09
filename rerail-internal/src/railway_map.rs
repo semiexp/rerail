@@ -158,6 +158,14 @@ pub struct StationInfo {
     level: u8,
 }
 
+#[derive(Tsify, Serialize, Deserialize)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+pub struct RailwayInfo {
+    name: String,
+    level: u8,
+    color: u32,
+}
+
 #[derive(Clone, Copy, Serialize, Deserialize)]
 struct PhysicalCoord {
     x: i32,
@@ -619,6 +627,29 @@ impl RerailMap {
                 self[station_idx].add_railway(RailwayIndex(rail_id));
             }
         }
+    }
+
+    pub fn get_railway_info(&self, rail_id: usize) -> RailwayInfo {
+        let railway = RerailMap::find_railway_by_unique_id(&self.railways, rail_id).unwrap();
+        RailwayInfo {
+            name: railway.name.clone(),
+            level: railway.level,
+            color: ((railway.color.r as u32) << 16)
+                | ((railway.color.g as u32) << 8)
+                | ((railway.color.b as u32) << 0),
+        }
+    }
+
+    pub fn set_railway_info(&mut self, rail_id: usize, info: RailwayInfo) {
+        let railway =
+            RerailMap::find_railway_by_unique_id_mut(&mut self.railways, rail_id).unwrap();
+        railway.name = info.name;
+        railway.level = info.level;
+        railway.color = Color {
+            r: ((info.color >> 16) & 255) as u8,
+            g: ((info.color >> 8) & 255) as u8,
+            b: ((info.color >> 0) & 255) as u8,
+        };
     }
 
     fn find_railway_by_unique_id<'a>(

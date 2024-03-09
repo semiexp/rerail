@@ -1,4 +1,5 @@
 import init_wasm, {
+  RailwayInfo,
   StationInfo,
   ViewportRailwayList,
 } from "../rerail-internal/pkg/rerail_internal";
@@ -13,6 +14,7 @@ export type {
   ViewportSpec,
   ViewportRailwayList,
   NearestSegment,
+  RailwayInfo,
   RenderingInfo,
   RenderingOptions,
   StationInfo,
@@ -93,6 +95,17 @@ export class RerailMap {
     let data = this.data;
     this._data = undefined;
     data.set_station_info(railwayId, pointIdx, stationInfo);
+    return new RerailMap(data);
+  }
+
+  getRailwayInfo(railwayId: number): RailwayInfo {
+    return this.data.get_railway_info(railwayId);
+  }
+
+  setRailwayInfo(railwayId: number, info: RailwayInfo): RerailMap {
+    let data = this.data;
+    this._data = undefined;
+    data.set_railway_info(railwayId, info);
     return new RerailMap(data);
   }
 }

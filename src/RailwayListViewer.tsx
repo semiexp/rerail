@@ -1,15 +1,24 @@
+import React, { useState } from "react";
 import { ViewportRailwayList } from "./RerailMap";
+import { Menu, MenuItem } from "@mui/material";
 
 type RailwayListViewerProps = {
   railwayList: ViewportRailwayList;
   selectedId: number | null;
   onSelect: (id: number) => void;
+  onOpenRailwayConfig: (id: number) => void;
 };
 
 export const RailwayListViewer = (props: RailwayListViewerProps) => {
   const { railwayList, selectedId, onSelect } = props;
   const railNames = railwayList.rail_names;
   const railIds = railwayList.rail_ids;
+
+  const [contextMenu, setContextMenu] = useState<{
+    mouseX: number;
+    mouseY: number;
+    selectedRail: number;
+  } | null>(null);
 
   let items = [];
   for (let i = 0; i < railNames.length; ++i) {
@@ -28,6 +37,18 @@ export const RailwayListViewer = (props: RailwayListViewerProps) => {
           ...extraStyle,
         }}
         onClick={() => onSelect(railIds[i])}
+        onContextMenu={(e: React.MouseEvent) => {
+          e.preventDefault();
+          if (contextMenu !== null) {
+            setContextMenu(null);
+          } else {
+            setContextMenu({
+              mouseX: e.clientX,
+              mouseY: e.clientY,
+              selectedRail: railIds[i],
+            });
+          }
+        }}
       >
         {railNames[i]}
       </div>,
@@ -35,8 +56,33 @@ export const RailwayListViewer = (props: RailwayListViewerProps) => {
   }
 
   return (
-    <div style={{ height: "100%", width: "100%", overflowY: "scroll" }}>
+    <div
+      style={{ height: "100%", width: "100%", overflowY: "scroll" }}
+      onContextMenu={(e) => e.preventDefault()}
+    >
       {items}
+      <Menu
+        open={contextMenu !== null}
+        anchorReference="anchorPosition"
+        anchorPosition={
+          contextMenu
+            ? { top: contextMenu.mouseY, left: contextMenu.mouseX }
+            : undefined
+        }
+        onClose={() => setContextMenu(null)}
+      >
+        <MenuItem
+          onClick={() => {
+            if (contextMenu !== null) {
+              props.onOpenRailwayConfig(contextMenu.selectedRail);
+            }
+            setContextMenu(null);
+          }}
+        >
+          路線設定
+        </MenuItem>
+        <MenuItem onClick={() => setContextMenu(null)}>駅一覧</MenuItem>
+      </Menu>
     </div>
   );
 };

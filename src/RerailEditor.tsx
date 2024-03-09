@@ -197,15 +197,11 @@ export const RerailEditor = (props: RerailEditorProps) => {
           stationInfo || { name: "", level: 0 },
         );
         if (stationValue && stationValue.name !== "") {
-          const newStationInfo = {
-            name: stationValue.name,
-            level: stationValue.level,
-          };
           props.setRailwayMap(
             props.railwayMap!.setStationInfo(
               state.selectedRailId!,
               index,
-              newStationInfo,
+              stationValue,
             ),
           );
         }

@@ -10,22 +10,16 @@ import {
   TextField,
 } from "@mui/material";
 import { ChangeEvent, forwardRef, useImperativeHandle, useState } from "react";
-
-export type StationDialogValue = {
-  name: string;
-  level: number;
-};
+import { StationInfo } from "./RerailMap";
 
 type StationDialogState = {
   open: boolean;
-  value: StationDialogValue;
-  callback?: (value?: StationDialogValue) => void;
+  value: StationInfo;
+  callback?: (value?: StationInfo) => void;
 };
 
 export type StationDialogRefType = {
-  open: (
-    initialValue: StationDialogValue,
-  ) => Promise<StationDialogValue | undefined>;
+  open: (initialValue: StationInfo) => Promise<StationInfo | undefined>;
 };
 
 export const StationDialog = forwardRef((_props, ref) => {
@@ -41,18 +35,14 @@ export const StationDialog = forwardRef((_props, ref) => {
     ref,
     () => {
       return {
-        open(
-          initialValue: StationDialogValue,
-        ): Promise<StationDialogValue | undefined> {
-          return new Promise(
-            (resolve: (value?: StationDialogValue) => void) => {
-              setState({
-                open: true,
-                value: initialValue,
-                callback: resolve,
-              });
-            },
-          );
+        open(initialValue: StationInfo): Promise<StationInfo | undefined> {
+          return new Promise((resolve: (value?: StationInfo) => void) => {
+            setState({
+              open: true,
+              value: initialValue,
+              callback: resolve,
+            });
+          });
         },
       };
     },

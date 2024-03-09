@@ -15,6 +15,7 @@ export type {
   NearestSegment,
   RenderingInfo,
   RenderingOptions,
+  StationInfo,
 } from "../rerail-internal/pkg/rerail_internal";
 
 await init_wasm();

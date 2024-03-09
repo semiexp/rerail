@@ -4,12 +4,16 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  FormControlLabel,
+  Radio,
+  RadioGroup,
   TextField,
 } from "@mui/material";
 import { ChangeEvent, forwardRef, useImperativeHandle, useState } from "react";
 
 export type StationDialogValue = {
   name: string;
+  level: number;
 };
 
 type StationDialogState = {
@@ -29,6 +33,7 @@ export const StationDialog = forwardRef((_props, ref) => {
     open: false,
     value: {
       name: "",
+      level: 0,
     },
   });
 
@@ -69,6 +74,16 @@ export const StationDialog = forwardRef((_props, ref) => {
     });
   };
 
+  const onChangeLevel = (level: number) => {
+    setState({
+      ...state,
+      value: {
+        ...state.value,
+        level,
+      },
+    });
+  };
+
   return (
     <Dialog open={state.open}>
       <DialogTitle>駅設定</DialogTitle>
@@ -79,6 +94,32 @@ export const StationDialog = forwardRef((_props, ref) => {
           value={state.value.name}
           onChange={onChangeName}
         />
+        <RadioGroup value={state.value.level}>
+          <FormControlLabel
+            value={0}
+            control={<Radio />}
+            onChange={() => onChangeLevel(0)}
+            label="普通駅"
+          />
+          <FormControlLabel
+            value={1}
+            control={<Radio />}
+            onChange={() => onChangeLevel(1)}
+            label="主要駅"
+          />
+          <FormControlLabel
+            value={2}
+            control={<Radio />}
+            onChange={() => onChangeLevel(2)}
+            label="地域代表駅"
+          />
+          <FormControlLabel
+            value={3}
+            control={<Radio />}
+            onChange={() => onChangeLevel(3)}
+            label="都市代表駅"
+          />
+        </RadioGroup>
       </DialogContent>
       <DialogActions>
         <Button autoFocus onClick={() => onClick(false)}>

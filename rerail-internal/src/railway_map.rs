@@ -20,13 +20,15 @@ pub struct Color {
 
 pub struct Station {
     name: String,
+    level: u8,
     railways: Vec<RailwayIndex>,
 }
 
 impl Station {
-    pub fn new(name: String) -> Station {
+    pub fn new(name: String, level: u8) -> Station {
         Station {
             name,
+            level,
             railways: vec![],
         }
     }
@@ -51,6 +53,7 @@ struct RailwayPoint {
 pub struct Railway {
     name: String,
     color: Color,
+    level: u8,
     unique_id: usize,
     points: Vec<RailwayPoint>,
 }
@@ -152,6 +155,7 @@ pub struct RenderingOptions {
 #[tsify(into_wasm_abi, from_wasm_abi)]
 pub struct StationInfo {
     name: String,
+    level: u8,
 }
 
 #[derive(Clone, Copy, Serialize, Deserialize)]
@@ -230,6 +234,15 @@ pub struct NearestSegment {
     between_points: bool,
 }
 
+const STATION_THRESHOLD: [[i32; 4]; 4] = [
+    [20, 50, 50, 50],
+    [50, 100, 200, 200],
+    [50, 100, 200, 200],
+    [100, 200, 500, 5000],
+];
+
+const RAILWAY_THRESHOLD: [i32; 4] = [100, 200, 200, 10000];
+
 #[wasm_bindgen]
 impl RerailMap {
     pub fn new() -> RerailMap {
@@ -253,10 +266,11 @@ impl RerailMap {
         ret
     }
 
-    pub(crate) fn new_railway(&mut self, name: String, color: Color) -> RailwayIndex {
+    pub(crate) fn new_railway(&mut self, name: String, color: Color, level: u8) -> RailwayIndex {
         let railway = Railway {
             name,
             color,
+            level,
             unique_id: self.railway_unique_id(),
             points: vec![],
         };
@@ -371,6 +385,10 @@ impl RerailMap {
 
         for railway in &self.railways {
             if let Some(railway) = railway {
+                if viewport.zoom > RAILWAY_THRESHOLD[railway.level as usize] {
+                    continue;
+                }
+
                 let railway_points = if Some(railway.unique_id) == opts.selected_rail_id {
                     &selected_railway_points
                 } else {
@@ -403,6 +421,10 @@ impl RerailMap {
 
         for railway in &self.railways {
             if let Some(railway) = railway {
+                let rail_level = railway.level as usize;
+                if viewport.zoom > RAILWAY_THRESHOLD[rail_level] {
+                    continue;
+                }
                 let railway_points = if Some(railway.unique_id) == opts.selected_rail_id {
                     &selected_railway_points
                 } else {
@@ -414,6 +436,10 @@ impl RerailMap {
                             continue;
                         }
                         if !viewport.contains(railway_points[i].coord) {
+                            continue;
+                        }
+                        let station_level = self[station_idx].level as usize;
+                        if viewport.zoom > STATION_THRESHOLD[rail_level][station_level] {
                             continue;
                         }
 
@@ -568,6 +594,7 @@ impl RerailMap {
                 let station = &self[station_idx];
                 return Some(StationInfo {
                     name: station.name.clone(),
+                    level: station.level,
                 });
             }
         }
@@ -579,9 +606,11 @@ impl RerailMap {
         if let Some(railway) = railway {
             if let Some(station_idx) = railway.points[point_idx].station {
                 self[station_idx].name = info.name;
+                self[station_idx].level = info.level;
             } else {
                 let station_idx = StationIndex(self.stations.len());
-                self.stations.push(Some(Station::new(info.name)));
+                self.stations
+                    .push(Some(Station::new(info.name, info.level)));
                 railway.points[point_idx].station = Some(station_idx);
                 self[station_idx].add_railway(RailwayIndex(rail_id));
             }

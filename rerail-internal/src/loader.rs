@@ -66,10 +66,10 @@ pub fn load_legacy_railmap_file<T: BufRead>(mut reader: &mut T) -> std::io::Resu
     let mut station_indices = vec![];
 
     for _ in 0..num_stations {
-        let _station_type = next_u8(&mut reader)?;
+        let station_level = (next_u8(&mut reader)? & 7) - 1;
         let _station_pos = next_coord(&mut reader)?;
         let station_name = next_sjis_string_prefixed_with_len(&mut reader)?;
-        station_indices.push(rerail_map.add_station(Station::new(station_name)));
+        station_indices.push(rerail_map.add_station(Station::new(station_name, station_level)));
     }
 
     assert_eq!(next_char(&mut reader)?, 'R');
@@ -81,6 +81,7 @@ pub fn load_legacy_railmap_file<T: BufRead>(mut reader: &mut T) -> std::io::Resu
 
     for _ in 0..num_rails {
         let rail_info = next_i32(&mut reader)?; // color (3 bytes) + rail type (1 byte) ?
+        let rail_level = (rail_info & 7) as u8 - 1;
         let rail_color = Color {
             r: ((rail_info >> 24) & 255) as u8,
             g: ((rail_info >> 16) & 255) as u8,
@@ -109,7 +110,7 @@ pub fn load_legacy_railmap_file<T: BufRead>(mut reader: &mut T) -> std::io::Resu
             associated_stations[cur_pos] = Some(station_indices[station_id]);
         }
 
-        let rail_idx = rerail_map.new_railway(rail_name, rail_color);
+        let rail_idx = rerail_map.new_railway(rail_name, rail_color, rail_level);
         for (c, st) in points.into_iter().zip(associated_stations.into_iter()) {
             if let Some(st) = &st {
                 rerail_map[*st].add_railway(rail_idx);

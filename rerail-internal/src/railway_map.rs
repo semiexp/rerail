@@ -359,6 +359,9 @@ impl RerailMap {
         if let Some(station_idx) = railway.points[i].station {
             railway.points[i].station = None;
             self[station_idx].remove_railway(idx);
+            if self[station_idx].railways.is_empty() {
+                self.stations[station_idx.0] = None;
+            }
         }
 
         self

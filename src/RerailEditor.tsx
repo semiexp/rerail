@@ -172,13 +172,24 @@ export const RerailEditor = (props: RerailEditorProps) => {
         y,
         10,
       );
-      if (nearest) {
-        setState({
-          ...state,
-          editorPhase: "point-moving",
-          skipNearestSegment: nearest,
-          mouse: { x, y },
-        });
+      if (e.button === 2) {
+        if (nearest && !nearest.betweenPoints) {
+          props.setRailwayMap(
+            props.railwayMap!.removeRailwayPoint(
+              state.selectedRailId!,
+              nearest.index,
+            ),
+          );
+        }
+      } else {
+        if (nearest) {
+          setState({
+            ...state,
+            editorPhase: "point-moving",
+            skipNearestSegment: nearest,
+            mouse: { x, y },
+          });
+        }
       }
     }
     if (maybeOpenStationEditor) {
@@ -202,17 +213,29 @@ export const RerailEditor = (props: RerailEditorProps) => {
           state.selectedRailId!,
           index,
         );
-        const stationValue = await stationDialogRef.current!.open(
-          stationInfo || { name: "", level: 0 },
-        );
-        if (stationValue && stationValue.name !== "") {
-          props.setRailwayMap(
-            props.railwayMap!.setStationInfo(
-              state.selectedRailId!,
-              index,
-              stationValue,
-            ),
+
+        if (e.button === 2) {
+          if (stationInfo !== undefined) {
+            props.setRailwayMap(
+              props.railwayMap!.detachStationOnRailway(
+                state.selectedRailId!,
+                nearest.index,
+              ),
+            );
+          }
+        } else {
+          const stationValue = await stationDialogRef.current!.open(
+            stationInfo || { name: "", level: 0 },
           );
+          if (stationValue && stationValue.name !== "") {
+            props.setRailwayMap(
+              props.railwayMap!.setStationInfo(
+                state.selectedRailId!,
+                index,
+                stationValue,
+              ),
+            );
+          }
         }
       }
     }
@@ -436,6 +459,7 @@ export const RerailEditor = (props: RerailEditorProps) => {
           onMouseUp={canvasMouseUpHandler}
           onMouseOut={canvasMouseUpHandler}
           onWheel={canvasWheelHandler}
+          onContextMenu={(e) => e.preventDefault()}
           style={{
             verticalAlign: "top",
             ...(state.editorPhase !== "none" ? { cursor } : {}),

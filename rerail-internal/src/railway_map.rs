@@ -42,6 +42,16 @@ impl Station {
         self.railways.push(railway);
         true
     }
+
+    pub fn remove_railway(&mut self, railway: RailwayIndex) -> bool {
+        for i in 0..self.railways.len() {
+            if self.railways[i] == railway {
+                self.railways.remove(i);
+                return true;
+            }
+        }
+        false
+    }
 }
 
 #[derive(Clone)]
@@ -329,6 +339,28 @@ impl RerailMap {
         let railway =
             RerailMap::find_railway_by_unique_id_mut(&mut self.railways, railway_id).unwrap();
         railway.points[i].coord = Coord::new(x, y);
+        self
+    }
+
+    #[wasm_bindgen(js_name = removeRailwayPoint)]
+    pub fn remove_railway_point(mut self, railway_id: usize, i: usize) -> RerailMap {
+        self = self.detach_station_on_railway(railway_id, i);
+        let railway =
+            RerailMap::find_railway_by_unique_id_mut(&mut self.railways, railway_id).unwrap();
+        railway.points.remove(i);
+
+        self
+    }
+
+    #[wasm_bindgen(js_name = detachStationOnRailway)]
+    pub fn detach_station_on_railway(mut self, railway_id: usize, i: usize) -> RerailMap {
+        let idx = self.get_railway_index(railway_id);
+        let railway = &mut self[idx];
+        if let Some(station_idx) = railway.points[i].station {
+            railway.points[i].station = None;
+            self[station_idx].remove_railway(idx);
+        }
+
         self
     }
 
@@ -704,6 +736,17 @@ impl RerailMap {
         }
 
         StationListOnRailway { names, distances }
+    }
+
+    fn get_railway_index(&self, unique_id: usize) -> RailwayIndex {
+        for i in 0..self.railways.len() {
+            if let Some(railway) = &self.railways[i] {
+                if railway.unique_id == unique_id {
+                    return RailwayIndex(i);
+                }
+            }
+        }
+        panic!();
     }
 
     fn find_railway_by_unique_id<'a>(

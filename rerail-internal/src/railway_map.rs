@@ -76,7 +76,7 @@ impl Railway {
 
 pub struct BorderPoint {
     coord: Coord,
-    neighbors: Vec<BorderPointIndex>,
+    neighbors: Vec<(BorderPointIndex, u8)>,
 }
 
 impl BorderPoint {
@@ -87,8 +87,8 @@ impl BorderPoint {
         }
     }
 
-    pub fn add_neighbor(&mut self, neighbor: BorderPointIndex) {
-        self.neighbors.push(neighbor);
+    pub fn add_neighbor(&mut self, neighbor: BorderPointIndex, level: u8) {
+        self.neighbors.push((neighbor, level));
     }
 }
 
@@ -122,6 +122,7 @@ pub struct StationRenderingInfo {
 pub struct RenderingInfo {
     pub rail_colors: Vec<Color>,
     pub rail_width: Vec<i32>,
+    pub rail_style: Vec<i32>,
     pub rail_points_num: Box<[i32]>,
     pub rail_points_x: Box<[i32]>,
     pub rail_points_y: Box<[i32]>,
@@ -409,6 +410,7 @@ impl RerailMap {
 
         let mut rail_colors = vec![];
         let mut rail_width = vec![];
+        let mut rail_style = vec![];
         let mut rail_points_num = vec![];
         let mut rail_points = vec![];
         let mut stations = vec![];
@@ -475,6 +477,7 @@ impl RerailMap {
                 if num > 0 {
                     rail_colors.push(railway.color);
                     rail_width.push(1);
+                    rail_style.push(0);
                     rail_points_num.push(num);
                 }
             }
@@ -548,39 +551,56 @@ impl RerailMap {
                 b: 148,
             });
             rail_width.push(4);
+            rail_style.push(0);
             rail_points_num.push(station_points.len() as i32);
             rail_points.extend(station_points);
         }
 
-        let mut border_points = vec![];
+        let mut border_points = vec![vec![]; 3];
 
         for i in 0..self.border_points.len() {
             if let Some(pt) = &self.border_points[i] {
-                for &j in &pt.neighbors {
+                for &(j, level) in &pt.neighbors {
                     if i < j.0 {
                         let pt2 = &self[j];
+                        assert!(level < 3);
                         if viewport.crosses_with_line_segment(pt.coord, pt2.coord) {
-                            border_points.push(viewport.to_physical_point(pt.coord));
-                            border_points.push(viewport.to_physical_point(pt2.coord));
+                            border_points[level as usize]
+                                .push(viewport.to_physical_point(pt.coord));
+                            border_points[level as usize]
+                                .push(viewport.to_physical_point(pt2.coord));
                         }
                     }
                 }
             }
         }
 
-        if border_points.len() > 0 {
-            rail_colors.push(Color { r: 0, g: 0, b: 0 });
-            rail_width.push(1);
-            rail_points_num.push(border_points.len() as i32);
-            rail_points.extend(border_points);
+        for level in 0..3 {
+            if border_points[level].len() > 0 {
+                rail_colors.push(Color { r: 0, g: 0, b: 0 });
+
+                let (width, style) = match level {
+                    0 => (1, 1),
+                    1 => (1, 0),
+                    2 => (2, 0),
+                    _ => unreachable!(),
+                };
+                rail_width.push(width);
+                rail_style.push(style);
+                rail_points_num.push(border_points[level].len() as i32);
+                rail_points.extend(&border_points[level]);
+            }
         }
 
         let (rail_points_x, rail_points_y) = split_into_x_and_y(&rail_points);
         let (marker_points_x, marker_points_y) = split_into_x_and_y(&marker_points);
 
+        assert_eq!(rail_width.len(), rail_style.len());
+
         RenderingInfo {
             rail_colors,
             rail_width,
+            rail_style,
             rail_points_num: rail_points_num.into_boxed_slice(),
             rail_points_x: rail_points_x.into_boxed_slice(),
             rail_points_y: rail_points_y.into_boxed_slice(),

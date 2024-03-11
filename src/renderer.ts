@@ -10,6 +10,7 @@ export function renderMap(
 ) {
   let railColors = renderingInfo.rail_colors;
   let railWidth = renderingInfo.rail_width;
+  let railStyle = renderingInfo.rail_style;
   let railNumPoints = renderingInfo.rail_points_num;
   let railPointX = renderingInfo.rail_points_x;
   let railPointY = renderingInfo.rail_points_y;
@@ -25,6 +26,15 @@ export function renderMap(
     let color = railColors[i];
     ctx.lineWidth = railWidth[i];
     ctx.strokeStyle = `rgb(${color.r}, ${color.g}, ${color.b})`;
+
+    if (railStyle[i] === 0) {
+      ctx.setLineDash([]);
+    } else if (railStyle[i] === 1) {
+      ctx.setLineDash([5, 5]);
+    } else {
+      // unexpected
+      throw Error();
+    }
     for (let j = 0; j < railNumPoints[i]; j += 2) {
       ctx.beginPath();
       ctx.moveTo(railPointX[p], railPointY[p]);

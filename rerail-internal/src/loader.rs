@@ -149,11 +149,13 @@ pub fn load_legacy_railmap_file<T: BufRead>(mut reader: &mut T) -> std::io::Resu
 
     let mut border_point_indices = vec![];
     let mut edges = vec![];
+    let mut levels = vec![];
     for i in 0..num_border_points {
-        let _point_level = next_u8(&mut reader)?;
+        let point_level = next_u8(&mut reader)?;
         let point_coord = next_coord(&mut reader)?;
 
         border_point_indices.push(rerail_map.add_border_point(BorderPoint::new(point_coord)));
+        levels.push(point_level);
 
         let num_edges = next_u8(&mut reader)? as usize;
         for _ in 0..num_edges {
@@ -163,8 +165,9 @@ pub fn load_legacy_railmap_file<T: BufRead>(mut reader: &mut T) -> std::io::Resu
     }
 
     for (u, v) in edges {
-        rerail_map[border_point_indices[u]].add_neighbor(border_point_indices[v]);
-        rerail_map[border_point_indices[v]].add_neighbor(border_point_indices[u]);
+        let level = levels[u].min(levels[v]);
+        rerail_map[border_point_indices[u]].add_neighbor(border_point_indices[v], level);
+        rerail_map[border_point_indices[v]].add_neighbor(border_point_indices[u], level);
     }
 
     Ok(rerail_map)

@@ -11,13 +11,14 @@ use crate::geom::{
 };
 
 #[wasm_bindgen]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Serialize, Deserialize)]
 pub struct Color {
     pub r: u8,
     pub g: u8,
     pub b: u8,
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct Station {
     name: String,
     level: u8,
@@ -54,12 +55,13 @@ impl Station {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 struct RailwayPoint {
     coord: Coord,
     station: Option<StationIndex>,
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct Railway {
     name: String,
     color: Color,
@@ -74,6 +76,7 @@ impl Railway {
     }
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct BorderPoint {
     coord: Coord,
     neighbors: Vec<(BorderPointIndex, u8)>,
@@ -92,17 +95,18 @@ impl BorderPoint {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct StationIndex(usize);
 
 #[wasm_bindgen(getter_with_clone)]
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct RailwayIndex(usize);
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct BorderPointIndex(usize);
 
 #[wasm_bindgen]
+#[derive(Serialize, Deserialize)]
 pub struct RerailMap {
     stations: Vec<Option<Station>>,
     railways: Vec<Option<Railway>>,
@@ -312,7 +316,29 @@ impl RerailMap {
 
     pub fn load(data: &[u8]) -> RerailMap {
         let mut data = data;
-        crate::loader::load_legacy_railmap_file(&mut data).unwrap()
+        assert!(data.len() >= 2);
+
+        if data[0] == 'R' as u8 && data[1] == 'M' as u8 {
+            crate::loader::load_legacy_railmap_file(&mut data).unwrap()
+        } else if data[0] == 'R' as u8 && data[1] == 'L' as u8 {
+            RerailMap::load_new_format(data)
+        } else {
+            panic!();
+        }
+    }
+
+    fn load_new_format(data: &[u8]) -> RerailMap {
+        let r = flexbuffers::Reader::get_root(data).unwrap();
+        RerailMap::deserialize(r).unwrap()
+    }
+
+    pub fn save(&self) -> Box<[u8]> {
+        let mut serializer = flexbuffers::FlexbufferSerializer::new();
+        self.serialize(&mut serializer).unwrap();
+
+        let mut ret = vec!['R' as u8, 'L' as u8];
+        ret.extend(serializer.view());
+        ret.into_boxed_slice()
     }
 
     #[wasm_bindgen(js_name = insertRailwayPoint)]

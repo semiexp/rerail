@@ -8,7 +8,7 @@ import iconMove from "./assets/move.svg";
 import iconRailway from "./assets/railway.svg";
 import iconStation from "./assets/station.svg";
 import { ButtonGroup, IconButton } from "@mui/material";
-import { FileOpen } from "@mui/icons-material";
+import { FileOpen, Save } from "@mui/icons-material";
 
 type EditorMode = "move" | "railway" | "station";
 
@@ -30,6 +30,7 @@ function App() {
   });
 
   const fileElementRef = useRef<HTMLInputElement>(null);
+  const anchorElementRef = useRef<HTMLAnchorElement>(null);
   const fileHandler = (e: ChangeEvent<HTMLInputElement>) => {
     const files = e.currentTarget.files;
 
@@ -45,6 +46,20 @@ function App() {
     });
 
     reader.readAsArrayBuffer(file);
+  };
+  const downloadMap = () => {
+    const map = appState.railwayMap;
+    if (map === null) {
+      return;
+    }
+    const data = map.save();
+    const blob = new Blob([data], { type: "application/octet-stream" });
+    const url = URL.createObjectURL(blob);
+    const a = anchorElementRef.current!;
+    a.download = "map.rrl"; // TODO
+    a.href = url;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -74,12 +89,20 @@ function App() {
           onChange={fileHandler}
           style={{ display: "none" }}
         />
+        <a ref={anchorElementRef} style={{ display: "none" }} />
         <ButtonGroup>
           <IconButton
             size="small"
             onClick={() => fileElementRef.current!.click()}
           >
             <FileOpen />
+          </IconButton>
+          <IconButton
+            size="small"
+            onClick={downloadMap}
+            disabled={appState.railwayMap === null}
+          >
+            <Save />
           </IconButton>
         </ButtonGroup>
         <div

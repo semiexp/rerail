@@ -45,6 +45,7 @@ export function renderMap(
     }
   }
 
+  ctx.setLineDash([]);
   ctx.lineWidth = 1;
   ctx.strokeStyle = "black";
   for (let i = 0; i < markerX.length; ++i) {

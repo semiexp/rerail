@@ -29,7 +29,11 @@ type RerailEditorProps = {
   railwayMap: RerailMap | null;
 };
 
-type EditorPhase = "none" | "viewport-moving" | "point-moving";
+type EditorPhase =
+  | "none"
+  | "viewport-moving"
+  | "point-moving"
+  | "station-linking";
 
 type RerailEditorStateType = {
   canvasHeight: number;
@@ -44,9 +48,12 @@ type RerailEditorStateType = {
   topXOnMouseDown?: number;
   topYOnMouseDown?: number;
 
-  // point-moving
+  // point-moving & station-linking
   selectedIndex?: IndexOnRailway;
   mouse?: { x: number; y: number };
+
+  // station-linking
+  moved?: boolean;
 };
 
 const initialRerailEditorState: RerailEditorStateType = {
@@ -98,13 +105,16 @@ export const RerailEditor = (props: RerailEditorProps) => {
       zoom: zoomLevels[props.zoomLevel],
     };
 
-    let temporaryMovingPoint =
-      state.editorPhase === "point-moving"
-        ? {
-            index: state.selectedIndex!,
-            pointAfterMove: state.mouse!,
-          }
-        : undefined;
+    let temporaryMovingPoint = undefined;
+    if (
+      state.editorPhase === "point-moving" ||
+      (state.editorPhase === "station-linking" && state.moved)
+    ) {
+      temporaryMovingPoint = {
+        index: state.selectedIndex!,
+        pointAfterMove: state.mouse!,
+      };
+    }
     const renderInfo = railwayMap.render(viewport, {
       selectedRailId:
         state.selectedRailId !== null ? state.selectedRailId : undefined,
@@ -149,7 +159,7 @@ export const RerailEditor = (props: RerailEditorProps) => {
       !transitionToViewportMoving &&
       editorMode === "railway" &&
       state.selectedRailId !== null;
-    const maybeOpenStationEditor =
+    const transitionToStationLinking =
       editorMode === "station" &&
       !transitionToViewportMoving &&
       !transitionToPointMoving;
@@ -199,7 +209,7 @@ export const RerailEditor = (props: RerailEditorProps) => {
         }
       }
     }
-    if (maybeOpenStationEditor) {
+    if (transitionToStationLinking) {
       const viewport: ViewportSpec = {
         leftX: props.topX,
         topY: props.topY,
@@ -216,12 +226,12 @@ export const RerailEditor = (props: RerailEditorProps) => {
       );
       if (nearest && !nearest.inserting) {
         const index = nearest.index;
-        const stationInfo = props.railwayMap!.getStationInfo(
-          state.selectedRailId!,
-          index,
-        );
 
         if (e.button === 2) {
+          const stationInfo = props.railwayMap!.getStationInfo(
+            state.selectedRailId!,
+            index,
+          );
           if (stationInfo !== undefined) {
             props.setRailwayMap(
               props.railwayMap!.detachStationOnRailway(
@@ -231,18 +241,13 @@ export const RerailEditor = (props: RerailEditorProps) => {
             );
           }
         } else {
-          const stationValue = await stationDialogRef.current!.open(
-            stationInfo || { name: "", level: 0 },
-          );
-          if (stationValue && stationValue.name !== "") {
-            props.setRailwayMap(
-              props.railwayMap!.setStationInfo(
-                state.selectedRailId!,
-                index,
-                stationValue,
-              ),
-            );
-          }
+          setState({
+            ...state,
+            editorPhase: "station-linking",
+            selectedIndex: nearest,
+            mouse: { x, y },
+            moved: false,
+          });
         }
       }
     }
@@ -266,10 +271,16 @@ export const RerailEditor = (props: RerailEditorProps) => {
         ...state,
         mouse: { x, y },
       });
+    } else if (state.editorPhase === "station-linking") {
+      setState({
+        ...state,
+        moved: true,
+        mouse: { x, y },
+      });
     }
   };
 
-  const canvasMouseUpHandler = () => {
+  const canvasMouseUpHandler = async () => {
     if (state.editorPhase === "viewport-moving") {
       setState({
         ...state,
@@ -309,6 +320,57 @@ export const RerailEditor = (props: RerailEditorProps) => {
         selectedIndex: undefined,
         mouse: undefined,
       });
+    } else if (state.editorPhase === "station-linking") {
+      if (state.moved) {
+        // link station
+        const viewport: ViewportSpec = {
+          leftX: props.topX,
+          topY: props.topY,
+          height: state.canvasHeight,
+          width: state.canvasWidth,
+          zoom: zoomLevels[props.zoomLevel],
+        };
+        props.setRailwayMap(
+          props.railwayMap!.linkToStation(
+            state.selectedRailId!,
+            state.selectedIndex!.index,
+            viewport,
+            state.mouse!,
+          ),
+        );
+        setState({
+          ...state,
+          editorPhase: "none",
+          selectedIndex: undefined,
+          mouse: undefined,
+          moved: undefined,
+        });
+      } else {
+        const index = state.selectedIndex!.index;
+        const stationInfo = props.railwayMap!.getStationInfo(
+          state.selectedRailId!,
+          index,
+        );
+        const stationValue = await stationDialogRef.current!.open(
+          stationInfo || { name: "", level: 0 },
+        );
+        if (stationValue && stationValue.name !== "") {
+          props.setRailwayMap(
+            props.railwayMap!.setStationInfo(
+              state.selectedRailId!,
+              index,
+              stationValue,
+            ),
+          );
+        }
+        setState({
+          ...state,
+          editorPhase: "none",
+          selectedIndex: undefined,
+          mouse: undefined,
+          moved: undefined,
+        });
+      }
     }
   };
 
@@ -408,6 +470,12 @@ export const RerailEditor = (props: RerailEditorProps) => {
     cursor = "move";
   } else if (state.editorPhase === "point-moving") {
     cursor = "pointer";
+  } else if (state.editorPhase === "station-linking") {
+    if (!state.moved) {
+      cursor = "auto";
+    } else {
+      cursor = "pointer";
+    }
   }
 
   return (

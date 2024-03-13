@@ -187,8 +187,9 @@ pub struct RailwayInfo {
     color: u32,
 }
 
-#[derive(Clone, Copy, Serialize, Deserialize)]
-struct PhysicalCoord {
+#[derive(Tsify, Clone, Copy, Serialize, Deserialize)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+pub struct PhysicalCoord {
     x: i32,
     y: i32,
 }
@@ -393,6 +394,59 @@ impl RerailMap {
             self[station_idx].remove_railway(idx);
             if self[station_idx].railways.is_empty() {
                 self.stations[station_idx.0] = None;
+            }
+        }
+
+        self
+    }
+
+    #[wasm_bindgen(js_name = linkToStation)]
+    pub fn link_to_station(
+        mut self,
+        rail_id: usize,
+        index: usize,
+        viewport: ViewportSpec,
+        point: PhysicalCoord,
+    ) -> RerailMap {
+        let rail_idx = self.get_railway_index(rail_id);
+        if self[rail_idx].points[index].station.is_none() {
+            let viewport = Viewport::new(viewport);
+            let point = point.as_coord();
+
+            let mut nearest_station = None;
+            let mut nearst_distance_sq = 101; // TODO
+
+            for i in 0..self.railways.len() {
+                if i == rail_idx.0 {
+                    continue;
+                }
+                if let Some(railway) = &self.railways[i] {
+                    for j in 0..railway.points.len() {
+                        if !railway.points[j].station.is_some() {
+                            continue;
+                        }
+
+                        let dist_sq = distance_norm_square_points(
+                            viewport
+                                .to_physical_point(railway.points[j].coord)
+                                .as_coord(),
+                            point,
+                        );
+                        if dist_sq < nearst_distance_sq {
+                            nearest_station =
+                                Some((railway.points[j].coord, railway.points[j].station.unwrap()));
+                            nearst_distance_sq = dist_sq;
+                        }
+                    }
+                }
+            }
+
+            if let Some((coord, station_id)) = nearest_station {
+                self[rail_idx].points[index] = RailwayPoint {
+                    coord,
+                    station: Some(station_id),
+                };
+                self[station_id].add_railway(rail_idx);
             }
         }
 

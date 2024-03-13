@@ -3,7 +3,8 @@ import {
   RerailMap,
   ViewportSpec,
   ViewportRailwayList,
-  NearestSegment,
+  IndexOnRailway,
+  TemporaryMovingPoint,
 } from "./RerailMap";
 import { renderMap } from "./renderer";
 import { RailwayListViewer } from "./RailwayListViewer";
@@ -44,7 +45,7 @@ type RerailEditorStateType = {
   topYOnMouseDown?: number;
 
   // point-moving
-  skipNearestSegment?: NearestSegment;
+  selectedIndex?: IndexOnRailway;
   mouse?: { x: number; y: number };
 };
 
@@ -97,11 +98,17 @@ export const RerailEditor = (props: RerailEditorProps) => {
       zoom: zoomLevels[props.zoomLevel],
     };
 
+    let temporaryMovingPoint =
+      state.editorPhase === "point-moving"
+        ? {
+            index: state.selectedIndex!,
+            pointAfterMove: state.mouse!,
+          }
+        : undefined;
     const renderInfo = railwayMap.render(viewport, {
       selectedRailId:
         state.selectedRailId !== null ? state.selectedRailId : undefined,
-      skipNearestSegment: state.skipNearestSegment,
-      mouse: state.mouse,
+      temporaryMovingPoint,
     });
 
     const canvas = canvasRef.current!;
@@ -118,7 +125,7 @@ export const RerailEditor = (props: RerailEditorProps) => {
     state.canvasHeight,
     state.canvasWidth,
     state.selectedRailId,
-    state.skipNearestSegment,
+    state.selectedIndex,
     state.mouse,
   ]);
 
@@ -173,7 +180,7 @@ export const RerailEditor = (props: RerailEditorProps) => {
         10,
       );
       if (e.button === 2) {
-        if (nearest && !nearest.betweenPoints) {
+        if (nearest && !nearest.inserting) {
           props.setRailwayMap(
             props.railwayMap!.removeRailwayPoint(
               state.selectedRailId!,
@@ -186,7 +193,7 @@ export const RerailEditor = (props: RerailEditorProps) => {
           setState({
             ...state,
             editorPhase: "point-moving",
-            skipNearestSegment: nearest,
+            selectedIndex: nearest,
             mouse: { x, y },
           });
         }
@@ -207,7 +214,7 @@ export const RerailEditor = (props: RerailEditorProps) => {
         y,
         10,
       );
-      if (nearest && !nearest.betweenPoints) {
+      if (nearest && !nearest.inserting) {
         const index = nearest.index;
         const stationInfo = props.railwayMap!.getStationInfo(
           state.selectedRailId!,
@@ -277,11 +284,11 @@ export const RerailEditor = (props: RerailEditorProps) => {
       const y = state.mouse!.y * zoomLevels[props.zoomLevel] + props.topY;
 
       const map = props.railwayMap!;
-      if (state.skipNearestSegment!.betweenPoints) {
+      if (state.selectedIndex!.inserting) {
         props.setRailwayMap(
           map.insertRailwayPoint(
             state.selectedRailId!,
-            state.skipNearestSegment!.index + 1,
+            state.selectedIndex!.index,
             x,
             y,
           ),
@@ -290,7 +297,7 @@ export const RerailEditor = (props: RerailEditorProps) => {
         props.setRailwayMap(
           map.moveRailwayPoint(
             state.selectedRailId!,
-            state.skipNearestSegment!.index,
+            state.selectedIndex!.index,
             x,
             y,
           ),
@@ -299,7 +306,7 @@ export const RerailEditor = (props: RerailEditorProps) => {
       setState({
         ...state,
         editorPhase: "none",
-        skipNearestSegment: undefined,
+        selectedIndex: undefined,
         mouse: undefined,
       });
     }

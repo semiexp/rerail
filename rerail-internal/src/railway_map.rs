@@ -155,15 +155,21 @@ pub struct ViewportSpec {
 
 #[derive(Tsify, Serialize, Deserialize)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
+pub struct TemporaryMovingPoint {
+    index: IndexOnRailway,
+    #[serde(rename = "pointAfterMove")]
+    point_after_move: PhysicalCoord,
+}
+
+#[derive(Tsify, Serialize, Deserialize)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
 pub struct RenderingOptions {
     #[tsify(optional)]
     #[serde(rename = "selectedRailId")]
     selected_rail_id: Option<usize>,
     #[tsify(optional)]
-    #[serde(rename = "skipNearestSegment")]
-    skip_nearest_segment: Option<NearestSegment>,
-    #[tsify(optional)]
-    mouse: Option<PhysicalCoord>,
+    #[serde(rename = "temporaryMovingPoint")]
+    temporary_moving_point: Option<TemporaryMovingPoint>,
 }
 
 #[derive(Tsify, Serialize, Deserialize)]
@@ -251,10 +257,9 @@ impl Viewport {
 
 #[derive(Tsify, Serialize, Deserialize)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
-pub struct NearestSegment {
+pub struct IndexOnRailway {
     index: usize,
-    #[serde(rename = "betweenPoints")]
-    between_points: bool,
+    inserting: bool,
 }
 
 #[wasm_bindgen(getter_with_clone)]
@@ -449,20 +454,20 @@ impl RerailMap {
             {
                 selected_railway_points = selected_railway.points.clone();
 
-                if let (Some(skip_nearest_segment), Some(mouse_coord)) =
-                    (&opts.skip_nearest_segment, opts.mouse)
-                {
-                    let mouse_coord = viewport.from_physical_point(mouse_coord);
-                    if skip_nearest_segment.between_points {
+                if let Some(temporary_moving_point) = &opts.temporary_moving_point {
+                    let mouse_coord =
+                        viewport.from_physical_point(temporary_moving_point.point_after_move);
+                    if temporary_moving_point.index.inserting {
                         selected_railway_points.insert(
-                            skip_nearest_segment.index + 1,
+                            temporary_moving_point.index.index,
                             RailwayPoint {
                                 coord: mouse_coord,
                                 station: None,
                             },
                         );
                     } else {
-                        selected_railway_points[skip_nearest_segment.index].coord = mouse_coord;
+                        selected_railway_points[temporary_moving_point.index.index].coord =
+                            mouse_coord;
                     }
                 }
             }
@@ -644,7 +649,7 @@ impl RerailMap {
         x: i32,
         y: i32,
         max_dist: i32,
-    ) -> Option<NearestSegment> {
+    ) -> Option<IndexOnRailway> {
         let viewport = Viewport::new(viewport);
         let p = Coord::new(x, y);
 
@@ -667,9 +672,9 @@ impl RerailMap {
         }
 
         if nearest.0 <= threshold {
-            return Some(NearestSegment {
+            return Some(IndexOnRailway {
                 index: nearest.1,
-                between_points: false,
+                inserting: false,
             });
         }
 
@@ -689,9 +694,9 @@ impl RerailMap {
         }
 
         if nearest.0 <= threshold {
-            Some(NearestSegment {
-                index: nearest.1 - 1,
-                between_points: true,
+            Some(IndexOnRailway {
+                index: nearest.1,
+                inserting: true,
             })
         } else {
             None

@@ -4,7 +4,6 @@ import {
   ViewportSpec,
   ViewportRailwayList,
   IndexOnRailway,
-  TemporaryMovingPoint,
 } from "./RerailMap";
 import { renderMap } from "./renderer";
 import { RailwayListViewer } from "./RailwayListViewer";
@@ -80,20 +79,6 @@ export const RerailEditor = (props: RerailEditorProps) => {
     initialRerailEditorState,
   );
 
-  const isShiftKeyPressed = useRef(false);
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      isShiftKeyPressed.current = e.shiftKey;
-    };
-    window.addEventListener("keydown", handler);
-    window.addEventListener("keyup", handler);
-    return () => {
-      window.removeEventListener("keydown", handler);
-      window.removeEventListener("keyup", handler);
-    };
-  }, []);
-
   useEffect(() => {
     if (!props.railwayMap) return;
     const railwayMap = props.railwayMap;
@@ -153,8 +138,7 @@ export const RerailEditor = (props: RerailEditorProps) => {
     const y = e.clientY - (e.target as HTMLCanvasElement).offsetTop;
 
     const editorMode = props.editorMode;
-    const transitionToViewportMoving =
-      editorMode === "move" || isShiftKeyPressed.current;
+    const transitionToViewportMoving = editorMode === "move" || e.shiftKey;
     const transitionToPointMoving =
       !transitionToViewportMoving &&
       editorMode === "railway" &&

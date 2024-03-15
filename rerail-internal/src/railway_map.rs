@@ -170,6 +170,9 @@ pub struct RenderingOptions {
     #[tsify(optional)]
     #[serde(rename = "temporaryMovingPoint")]
     temporary_moving_point: Option<TemporaryMovingPoint>,
+    #[tsify(optional)]
+    #[serde(rename = "markerOnBorderPoints", default)]
+    marker_on_border_points: bool,
 }
 
 #[derive(Tsify, Serialize, Deserialize)]
@@ -645,6 +648,11 @@ impl RerailMap {
 
         for i in 0..self.border_points.len() {
             if let Some(pt) = &self.border_points[i] {
+                if opts.marker_on_border_points {
+                    if viewport.contains(pt.coord) {
+                        marker_points.push(viewport.to_physical_point(pt.coord));
+                    }
+                }
                 for &(j, level) in &pt.neighbors {
                     if i < j.0 {
                         let pt2 = &self[j];

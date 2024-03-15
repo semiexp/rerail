@@ -16,7 +16,7 @@ import {
   StationListDialogRefType,
 } from "./Dialogs";
 
-type EditorMode = "move" | "railway" | "station";
+export type EditorMode = "move" | "railway" | "station" | "borders";
 
 type RerailEditorProps = {
   topX: number;
@@ -102,8 +102,11 @@ export const RerailEditor = (props: RerailEditorProps) => {
     }
     const renderInfo = railwayMap.render(viewport, {
       selectedRailId:
-        state.selectedRailId !== null ? state.selectedRailId : undefined,
+        state.selectedRailId !== null && props.editorMode !== "borders"
+          ? state.selectedRailId
+          : undefined,
       temporaryMovingPoint,
+      markerOnBorderPoints: props.editorMode === "borders",
     });
 
     const canvas = canvasRef.current!;

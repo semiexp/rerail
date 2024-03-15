@@ -1,16 +1,15 @@
 import { ChangeEvent, useRef, useState } from "react";
 import { RerailMap } from "./RerailMap";
-import { RerailEditor } from "./RerailEditor";
+import { RerailEditor, EditorMode } from "./RerailEditor";
 
 import ToggleButton from "@mui/material/ToggleButton";
 import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import iconMove from "./assets/move.svg";
 import iconRailway from "./assets/railway.svg";
 import iconStation from "./assets/station.svg";
+import iconBorders from "./assets/borders.svg";
 import { ButtonGroup, IconButton } from "@mui/material";
 import { FileOpen, Save } from "@mui/icons-material";
-
-type EditorMode = "move" | "railway" | "station";
 
 type RerailAppState = {
   viewportTopX: number;
@@ -140,6 +139,15 @@ function App() {
             disableRipple
           >
             <img src={iconStation} height={24} />
+          </ToggleButton>
+          <ToggleButton
+            value="borders"
+            size="medium"
+            sx={{ padding: 0.2 }}
+            onClick={() => setAppState({ ...appState, editorMode: "borders" })}
+            disableRipple
+          >
+            <img src={iconBorders} height={24} />
           </ToggleButton>
         </ToggleButtonGroup>
       </div>

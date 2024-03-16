@@ -93,6 +93,24 @@ impl BorderPoint {
     pub fn add_neighbor(&mut self, neighbor: BorderPointIndex, level: u8) {
         self.neighbors.push((neighbor, level));
     }
+
+    pub fn get_level(&self, neighbor: BorderPointIndex) -> Option<u8> {
+        for &(j, level) in &self.neighbors {
+            if neighbor == j {
+                return Some(level);
+            }
+        }
+        None
+    }
+
+    pub fn remove_neighbor(&mut self, neighbor: BorderPointIndex) {
+        for i in 0..self.neighbors.len() {
+            if self.neighbors[i].0 == neighbor {
+                self.neighbors.remove(i);
+                return;
+            }
+        }
+    }
 }
 
 pub type StationIndex = SparseArrayId<Station>;
@@ -155,6 +173,15 @@ pub struct TemporaryMovingPoint {
     point_after_move: PhysicalCoord,
 }
 
+#[derive(Clone, Copy, Tsify, Serialize, Deserialize)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+pub struct TemporaryMovingBorderPoint {
+    #[serde(rename = "pointOrSegment")]
+    point_or_segment: BorderPointOrSegment,
+    #[serde(rename = "pointAfterMove")]
+    point_after_move: PhysicalCoord,
+}
+
 #[derive(Tsify, Serialize, Deserialize)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
 pub struct RenderingOptions {
@@ -167,6 +194,9 @@ pub struct RenderingOptions {
     #[tsify(optional)]
     #[serde(rename = "markerOnBorderPoints", default)]
     marker_on_border_points: bool,
+    #[tsify(optional)]
+    #[serde(rename = "temporaryMovingBorderPoint")]
+    temporary_moving_border_point: Option<TemporaryMovingBorderPoint>,
 }
 
 #[derive(Tsify, Serialize, Deserialize)]
@@ -258,6 +288,15 @@ impl Viewport {
 pub struct IndexOnRailway {
     index: usize,
     inserting: bool,
+}
+
+#[derive(Clone, Copy, Tsify, Serialize, Deserialize)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+pub enum BorderPointOrSegment {
+    #[serde(rename = "point")]
+    Point(BorderPointIndex),
+    #[serde(rename = "segment")]
+    Segment(BorderPointIndex, BorderPointIndex),
 }
 
 #[wasm_bindgen(getter_with_clone)]
@@ -360,6 +399,32 @@ impl RerailMap {
     ) -> RerailMap {
         let railway = &mut self.railways[railway_id];
         railway.points[i].coord = Coord::new(x, y);
+        self
+    }
+
+    #[wasm_bindgen(js_name = moveBorderPoint)]
+    pub fn move_border_point(mut self, id: BorderPointIndex, x: i32, y: i32) -> RerailMap {
+        self.border_points[id].coord = Coord::new(x, y);
+        self
+    }
+
+    #[wasm_bindgen(js_name = insertBorderPointBetweenSegment)]
+    pub fn insert_border_point_between_segment(
+        mut self,
+        i: BorderPointIndex,
+        j: BorderPointIndex,
+        x: i32,
+        y: i32,
+    ) -> RerailMap {
+        let level = self.border_points[i].get_level(j).unwrap();
+        self.border_points[i].remove_neighbor(j);
+        self.border_points[j].remove_neighbor(i);
+
+        let k = self.border_points.push(BorderPoint::new(Coord { x, y }));
+        self.border_points[i].add_neighbor(k, level);
+        self.border_points[k].add_neighbor(i, level);
+        self.border_points[j].add_neighbor(k, level);
+        self.border_points[k].add_neighbor(j, level);
         self
     }
 
@@ -618,21 +683,66 @@ impl RerailMap {
 
         let mut border_points = vec![vec![]; 3];
 
+        let get_border_coord = |i: BorderPointIndex| {
+            match opts.temporary_moving_border_point {
+                None => (),
+                Some(mv) => match mv.point_or_segment {
+                    BorderPointOrSegment::Point(p) => {
+                        if i == p {
+                            return viewport.from_physical_point(mv.point_after_move);
+                        }
+                    }
+                    _ => (),
+                },
+            }
+            self.border_points[i].coord
+        };
+
+        let mut temporary_segment_level = None;
         for (i, pt) in self.border_points.enumerate() {
             if opts.marker_on_border_points {
-                if viewport.contains(pt.coord) {
-                    marker_points.push(viewport.to_physical_point(pt.coord));
+                let coord = get_border_coord(i);
+                if viewport.contains(coord) {
+                    marker_points.push(viewport.to_physical_point(coord));
                 }
             }
             for &(j, level) in &pt.neighbors {
                 if i < j {
-                    let pt2 = &self[j];
                     assert!(level < 3);
-                    if viewport.crosses_with_line_segment(pt.coord, pt2.coord) {
-                        border_points[level as usize].push(viewport.to_physical_point(pt.coord));
-                        border_points[level as usize].push(viewport.to_physical_point(pt2.coord));
+
+                    if let Some(TemporaryMovingBorderPoint {
+                        point_or_segment: BorderPointOrSegment::Segment(x, y),
+                        point_after_move: _,
+                    }) = opts.temporary_moving_border_point
+                    {
+                        if (i, j) == (x, y) || (j, i) == (x, y) {
+                            temporary_segment_level = Some(level);
+                            continue;
+                        }
+                    }
+
+                    let c1 = get_border_coord(i);
+                    let c2 = get_border_coord(j);
+                    if viewport.crosses_with_line_segment(c1, c2) {
+                        border_points[level as usize].push(viewport.to_physical_point(c1));
+                        border_points[level as usize].push(viewport.to_physical_point(c2));
                     }
                 }
+            }
+        }
+        if let Some(level) = temporary_segment_level {
+            let temporary_moving_border_point = opts.temporary_moving_border_point.unwrap();
+            if opts.marker_on_border_points {
+                marker_points.push(temporary_moving_border_point.point_after_move);
+            }
+            let ps = temporary_moving_border_point.point_or_segment;
+            if let BorderPointOrSegment::Segment(i, j) = ps {
+                let c1 = get_border_coord(i);
+                let c2 = get_border_coord(j);
+                border_points[level as usize].push(viewport.to_physical_point(c1));
+                border_points[level as usize].push(temporary_moving_border_point.point_after_move);
+                border_points[level as usize].push(viewport.to_physical_point(c2));
+                border_points[level as usize].push(temporary_moving_border_point.point_after_move);
             }
         }
 
@@ -731,6 +841,54 @@ impl RerailMap {
         } else {
             None
         }
+    }
+
+    #[wasm_bindgen(js_name = findNearestBorder)]
+    pub fn find_nearest_border(
+        &self,
+        viewport: ViewportSpec,
+        x: i32,
+        y: i32,
+        max_dist: i32,
+    ) -> Option<BorderPointOrSegment> {
+        let viewport = Viewport::new(viewport);
+        let p = Coord::new(x, y);
+
+        let threshold = max_dist as i64 * max_dist as i64;
+
+        let mut nearest = None;
+        for (i, pt) in self.border_points.enumerate() {
+            let d = distance_norm_square_points(viewport.to_physical_point(pt.coord).as_coord(), p);
+            if d <= threshold {
+                if nearest.map(|(d2, _)| d < d2).unwrap_or(true) {
+                    nearest = Some((d, i));
+                }
+            }
+        }
+        if let Some((_, p)) = nearest {
+            return Some(BorderPointOrSegment::Point(p));
+        }
+
+        let mut nearest = None;
+        for (i, pt) in self.border_points.enumerate() {
+            let c0 = viewport.to_physical_point(pt.coord).as_coord();
+            for (j, _) in &pt.neighbors {
+                let c1 = viewport
+                    .to_physical_point(self.border_points[*j].coord)
+                    .as_coord();
+                let d = distance_norm_square_point_line_segment(c0, c1, p);
+                if d <= threshold {
+                    if nearest.map(|(d2, _)| d < d2).unwrap_or(true) {
+                        nearest = Some((d, (i, *j)));
+                    }
+                }
+            }
+        }
+        if let Some((_, (i, j))) = nearest {
+            return Some(BorderPointOrSegment::Segment(i, j));
+        }
+
+        None
     }
 
     #[wasm_bindgen(js_name = getStationInfo)]

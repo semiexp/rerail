@@ -12,6 +12,7 @@ use std::marker::PhantomData;
 pub struct SparseArray<T> {
     data: Vec<(SparseArrayId<T>, T)>,
     id_to_index: HashMap<SparseArrayId<T>, usize>,
+    unused_indices: Vec<usize>,
 }
 
 impl<T> SparseArray<T> {
@@ -19,13 +20,17 @@ impl<T> SparseArray<T> {
         SparseArray {
             data: vec![],
             id_to_index: HashMap::new(),
+            unused_indices: vec![],
         }
     }
 
     pub fn push(&mut self, item: T) -> SparseArrayId<T> {
-        let id = self.unused_index();
+        let id = SparseArrayId(
+            self.unused_indices.pop().unwrap_or(self.data.len()),
+            PhantomData,
+        );
         let idx = self.data.len();
-        self.id_to_index.insert(id, idx);
+        assert!(self.id_to_index.insert(id, idx).is_none());
         self.data.push((id, item));
         id
     }
@@ -51,6 +56,7 @@ impl<T> SparseArray<T> {
             self.id_to_index.insert(self.data[idx].0, idx);
             self.data.pop();
         }
+        self.unused_indices.push(id.0);
     }
 
     #[allow(unused)]
@@ -60,24 +66,6 @@ impl<T> SparseArray<T> {
 
     pub fn enumerate(&self) -> impl Iterator<Item = (SparseArrayId<T>, &T)> {
         self.data.iter().map(|(id, data)| (*id, data))
-    }
-
-    fn unused_index(&self) -> SparseArrayId<T> {
-        // TODO: use more efficient algorithm
-        let mut used = vec![];
-        for (idx, _) in &self.data {
-            used.push(idx.0);
-        }
-        used.sort();
-        if used.len() == 0 || used[0] > 0 {
-            return SparseArrayId(0, PhantomData);
-        }
-        for i in 1..used.len() {
-            if used[i] > used[i - 1] + 1 {
-                return SparseArrayId(used[i - 1] + 1, PhantomData);
-            }
-        }
-        SparseArrayId(used[used.len() - 1] + 1, PhantomData)
     }
 }
 

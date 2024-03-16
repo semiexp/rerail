@@ -4,6 +4,7 @@ import {
   ViewportSpec,
   ViewportRailwayList,
   IndexOnRailway,
+  BorderPointOrSegment,
 } from "./RerailMap";
 import { renderMap } from "./renderer";
 import { RailwayListViewer } from "./RailwayListViewer";
@@ -32,7 +33,8 @@ type EditorPhase =
   | "none"
   | "viewport-moving"
   | "point-moving"
-  | "station-linking";
+  | "station-linking"
+  | "border-moving";
 
 type RerailEditorStateType = {
   canvasHeight: number;
@@ -53,6 +55,9 @@ type RerailEditorStateType = {
 
   // station-linking
   moved?: boolean;
+
+  // border-moving
+  selectedBorderIndex?: BorderPointOrSegment;
 };
 
 const initialRerailEditorState: RerailEditorStateType = {
@@ -100,6 +105,13 @@ export const RerailEditor = (props: RerailEditorProps) => {
         pointAfterMove: state.mouse!,
       };
     }
+    let temporaryMovingBorderPoint = undefined;
+    if (state.editorPhase === "border-moving") {
+      temporaryMovingBorderPoint = {
+        pointOrSegment: state.selectedBorderIndex!,
+        pointAfterMove: state.mouse!,
+      };
+    }
     const renderInfo = railwayMap.render(viewport, {
       selectedRailId:
         state.selectedRailId !== null && props.editorMode !== "borders"
@@ -107,6 +119,7 @@ export const RerailEditor = (props: RerailEditorProps) => {
           : undefined,
       temporaryMovingPoint,
       markerOnBorderPoints: props.editorMode === "borders",
+      temporaryMovingBorderPoint,
     });
 
     const canvas = canvasRef.current!;
@@ -124,6 +137,7 @@ export const RerailEditor = (props: RerailEditorProps) => {
     state.canvasWidth,
     state.selectedRailId,
     state.selectedIndex,
+    state.selectedBorderIndex,
     state.mouse,
   ]);
 
@@ -150,6 +164,11 @@ export const RerailEditor = (props: RerailEditorProps) => {
       editorMode === "station" &&
       !transitionToViewportMoving &&
       !transitionToPointMoving;
+    const transitionToBorderMoving =
+      editorMode === "borders" &&
+      !transitionToViewportMoving &&
+      !transitionToPointMoving &&
+      !transitionToStationLinking;
 
     if (transitionToViewportMoving) {
       setState({
@@ -238,6 +257,24 @@ export const RerailEditor = (props: RerailEditorProps) => {
         }
       }
     }
+    if (transitionToBorderMoving) {
+      const viewport: ViewportSpec = {
+        leftX: props.topX,
+        topY: props.topY,
+        height: state.canvasHeight,
+        width: state.canvasWidth,
+        zoom: zoomLevels[props.zoomLevel],
+      };
+      const nearest = props.railwayMap?.findNearestBorder(viewport, x, y, 10);
+      if (nearest) {
+        setState({
+          ...state,
+          editorPhase: "border-moving",
+          selectedBorderIndex: nearest,
+          mouse: { x, y },
+        });
+      }
+    }
   };
 
   const canvasMouseMoveHandler = (
@@ -262,6 +299,11 @@ export const RerailEditor = (props: RerailEditorProps) => {
       setState({
         ...state,
         moved: true,
+        mouse: { x, y },
+      });
+    } else if (state.editorPhase === "border-moving") {
+      setState({
+        ...state,
         mouse: { x, y },
       });
     }
@@ -358,6 +400,31 @@ export const RerailEditor = (props: RerailEditorProps) => {
           moved: undefined,
         });
       }
+    } else if (state.editorPhase === "border-moving") {
+      const selected = state.selectedBorderIndex!;
+      const x = state.mouse!.x * zoomLevels[props.zoomLevel] + props.topX;
+      const y = state.mouse!.y * zoomLevels[props.zoomLevel] + props.topY;
+
+      if ("point" in selected) {
+        props.setRailwayMap(
+          props.railwayMap!.moveBorderPoint(selected.point, x, y),
+        );
+      } else {
+        props.setRailwayMap(
+          props.railwayMap!.insertBorderPointBetweenSegment(
+            selected.segment[0],
+            selected.segment[1],
+            x,
+            y,
+          ),
+        );
+      }
+      setState({
+        ...state,
+        editorPhase: "none",
+        selectedBorderIndex: undefined,
+        mouse: undefined,
+      });
     }
   };
 
@@ -463,6 +530,8 @@ export const RerailEditor = (props: RerailEditorProps) => {
     } else {
       cursor = "pointer";
     }
+  } else if (state.editorPhase === "border-moving") {
+    cursor = "pointer";
   }
 
   return (

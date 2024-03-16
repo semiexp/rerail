@@ -9,6 +9,7 @@ use crate::geom::{
     compute_station_line_segment, distance_norm_square_point_line_segment,
     distance_norm_square_points, Rect,
 };
+use crate::sparse_array::{SparseArray, SparseArrayId};
 
 #[wasm_bindgen]
 #[derive(Clone, Copy, Serialize, Deserialize)]
@@ -66,7 +67,6 @@ pub struct Railway {
     name: String,
     color: Color,
     level: u8,
-    unique_id: usize,
     points: Vec<RailwayPoint>,
 }
 
@@ -98,9 +98,7 @@ impl BorderPoint {
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct StationIndex(usize);
 
-#[wasm_bindgen(getter_with_clone)]
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub struct RailwayIndex(usize);
+pub type RailwayIndex = SparseArrayId<Railway>;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct BorderPointIndex(usize);
@@ -109,7 +107,7 @@ pub struct BorderPointIndex(usize);
 #[derive(Serialize, Deserialize)]
 pub struct RerailMap {
     stations: Vec<Option<Station>>,
-    railways: Vec<Option<Railway>>,
+    railways: SparseArray<Railway>,
     border_points: Vec<Option<BorderPoint>>,
     railway_unique_id_last: usize,
 }
@@ -286,7 +284,7 @@ impl RerailMap {
     pub fn new() -> RerailMap {
         RerailMap {
             stations: vec![],
-            railways: vec![],
+            railways: SparseArray::new(),
             border_points: vec![],
             railway_unique_id_last: 0,
         }
@@ -298,23 +296,14 @@ impl RerailMap {
         ret
     }
 
-    fn railway_unique_id(&mut self) -> usize {
-        let ret = self.railway_unique_id_last;
-        self.railway_unique_id_last += 1;
-        ret
-    }
-
     pub(crate) fn new_railway(&mut self, name: String, color: Color, level: u8) -> RailwayIndex {
         let railway = Railway {
             name,
             color,
             level,
-            unique_id: self.railway_unique_id(),
             points: vec![],
         };
-        let ret = RailwayIndex(self.railways.len());
-        self.railways.push(Some(railway));
-        ret
+        self.railways.push(railway)
     }
 
     pub(crate) fn add_border_point(&mut self, border_point: BorderPoint) -> BorderPointIndex {
@@ -353,13 +342,12 @@ impl RerailMap {
     #[wasm_bindgen(js_name = insertRailwayPoint)]
     pub fn insert_railway_point(
         mut self,
-        railway_id: usize,
+        railway_id: RailwayIndex,
         i: usize,
         x: i32,
         y: i32,
     ) -> RerailMap {
-        let railway =
-            RerailMap::find_railway_by_unique_id_mut(&mut self.railways, railway_id).unwrap();
+        let railway = &mut self.railways[railway_id];
         railway.points.insert(
             i,
             RailwayPoint {
@@ -371,30 +359,33 @@ impl RerailMap {
     }
 
     #[wasm_bindgen(js_name = moveRailwayPoint)]
-    pub fn move_railway_point(mut self, railway_id: usize, i: usize, x: i32, y: i32) -> RerailMap {
-        let railway =
-            RerailMap::find_railway_by_unique_id_mut(&mut self.railways, railway_id).unwrap();
+    pub fn move_railway_point(
+        mut self,
+        railway_id: RailwayIndex,
+        i: usize,
+        x: i32,
+        y: i32,
+    ) -> RerailMap {
+        let railway = &mut self.railways[railway_id];
         railway.points[i].coord = Coord::new(x, y);
         self
     }
 
     #[wasm_bindgen(js_name = removeRailwayPoint)]
-    pub fn remove_railway_point(mut self, railway_id: usize, i: usize) -> RerailMap {
+    pub fn remove_railway_point(mut self, railway_id: RailwayIndex, i: usize) -> RerailMap {
         self = self.detach_station_on_railway(railway_id, i);
-        let railway =
-            RerailMap::find_railway_by_unique_id_mut(&mut self.railways, railway_id).unwrap();
+        let railway = &mut self.railways[railway_id];
         railway.points.remove(i);
 
         self
     }
 
     #[wasm_bindgen(js_name = detachStationOnRailway)]
-    pub fn detach_station_on_railway(mut self, railway_id: usize, i: usize) -> RerailMap {
-        let idx = self.get_railway_index(railway_id);
-        let railway = &mut self[idx];
+    pub fn detach_station_on_railway(mut self, railway_id: RailwayIndex, i: usize) -> RerailMap {
+        let railway = &mut self.railways[railway_id];
         if let Some(station_idx) = railway.points[i].station {
             railway.points[i].station = None;
-            self[station_idx].remove_railway(idx);
+            self[station_idx].remove_railway(railway_id);
             if self[station_idx].railways.is_empty() {
                 self.stations[station_idx.0] = None;
             }
@@ -406,50 +397,47 @@ impl RerailMap {
     #[wasm_bindgen(js_name = linkToStation)]
     pub fn link_to_station(
         mut self,
-        rail_id: usize,
+        rail_id: RailwayIndex,
         index: usize,
         viewport: ViewportSpec,
         point: PhysicalCoord,
     ) -> RerailMap {
-        let rail_idx = self.get_railway_index(rail_id);
-        if self[rail_idx].points[index].station.is_none() {
+        if self.railways[rail_id].points[index].station.is_none() {
             let viewport = Viewport::new(viewport);
             let point = point.as_coord();
 
             let mut nearest_station = None;
             let mut nearst_distance_sq = 101; // TODO
 
-            for i in 0..self.railways.len() {
-                if i == rail_idx.0 {
+            for (id, railway) in self.railways.enumerate() {
+                if id == rail_id {
                     continue;
                 }
-                if let Some(railway) = &self.railways[i] {
-                    for j in 0..railway.points.len() {
-                        if !railway.points[j].station.is_some() {
-                            continue;
-                        }
+                for j in 0..railway.points.len() {
+                    if !railway.points[j].station.is_some() {
+                        continue;
+                    }
 
-                        let dist_sq = distance_norm_square_points(
-                            viewport
-                                .to_physical_point(railway.points[j].coord)
-                                .as_coord(),
-                            point,
-                        );
-                        if dist_sq < nearst_distance_sq {
-                            nearest_station =
-                                Some((railway.points[j].coord, railway.points[j].station.unwrap()));
-                            nearst_distance_sq = dist_sq;
-                        }
+                    let dist_sq = distance_norm_square_points(
+                        viewport
+                            .to_physical_point(railway.points[j].coord)
+                            .as_coord(),
+                        point,
+                    );
+                    if dist_sq < nearst_distance_sq {
+                        nearest_station =
+                            Some((railway.points[j].coord, railway.points[j].station.unwrap()));
+                        nearst_distance_sq = dist_sq;
                     }
                 }
             }
 
             if let Some((coord, station_id)) = nearest_station {
-                self[rail_idx].points[index] = RailwayPoint {
+                self.railways[rail_id].points[index] = RailwayPoint {
                     coord,
                     station: Some(station_id),
                 };
-                self[station_id].add_railway(rail_idx);
+                self[station_id].add_railway(rail_id);
             }
         }
 
@@ -463,27 +451,24 @@ impl RerailMap {
         let mut rail_names = vec![];
         let mut rail_ids = vec![];
 
-        for i in 0..self.railways.len() {
-            if let Some(railway) = &self.railways[i] {
-                if viewport.zoom > RAILWAY_THRESHOLD[railway.level as usize] {
-                    continue;
-                }
+        for (id, railway) in self.railways.enumerate() {
+            if viewport.zoom > RAILWAY_THRESHOLD[railway.level as usize] {
+                continue;
+            }
 
-                let mut is_displayed = false;
-                for j in 1..railway.points.len() {
-                    if viewport.crosses_with_line_segment(
-                        railway.points[j - 1].coord,
-                        railway.points[j].coord,
-                    ) {
-                        is_displayed = true;
-                        break;
-                    }
+            let mut is_displayed = false;
+            for j in 1..railway.points.len() {
+                if viewport
+                    .crosses_with_line_segment(railway.points[j - 1].coord, railway.points[j].coord)
+                {
+                    is_displayed = true;
+                    break;
                 }
+            }
 
-                if is_displayed {
-                    rail_names.push(railway.name.clone());
-                    rail_ids.push(railway.unique_id);
-                }
+            if is_displayed {
+                rail_names.push(railway.name.clone());
+                rail_ids.push(id.as_usize());
             }
         }
 
@@ -507,8 +492,8 @@ impl RerailMap {
 
         let mut selected_railway_points = vec![];
         if let Some(id) = opts.selected_rail_id {
-            if let Some(selected_railway) = RerailMap::find_railway_by_unique_id(&self.railways, id)
-            {
+            let id = RailwayIndex::from_usize(id);
+            if let Some(selected_railway) = self.railways.get(id) {
                 selected_railway_points = selected_railway.points.clone();
 
                 if let Some(temporary_moving_point) = &opts.temporary_moving_point {
@@ -537,97 +522,92 @@ impl RerailMap {
             }
         }
 
-        for railway in &self.railways {
-            if let Some(railway) = railway {
-                if viewport.zoom > RAILWAY_THRESHOLD[railway.level as usize] {
-                    continue;
+        for (id, railway) in self.railways.enumerate() {
+            if viewport.zoom > RAILWAY_THRESHOLD[railway.level as usize] {
+                continue;
+            }
+
+            let railway_points = if Some(id.as_usize()) == opts.selected_rail_id {
+                &selected_railway_points
+            } else {
+                &railway.points
+            };
+
+            let mut num = 0;
+            for i in 1..railway_points.len() {
+                if viewport
+                    .crosses_with_line_segment(railway_points[i - 1].coord, railway_points[i].coord)
+                {
+                    num += 2;
+
+                    rail_points.push(viewport.to_physical_point(railway_points[i - 1].coord));
+                    rail_points.push(viewport.to_physical_point(railway_points[i].coord));
                 }
+            }
 
-                let railway_points = if Some(railway.unique_id) == opts.selected_rail_id {
-                    &selected_railway_points
-                } else {
-                    &railway.points
-                };
-
-                let mut num = 0;
-                for i in 1..railway_points.len() {
-                    if viewport.crosses_with_line_segment(
-                        railway_points[i - 1].coord,
-                        railway_points[i].coord,
-                    ) {
-                        num += 2;
-
-                        rail_points.push(viewport.to_physical_point(railway_points[i - 1].coord));
-                        rail_points.push(viewport.to_physical_point(railway_points[i].coord));
-                    }
-                }
-
-                if num > 0 {
-                    rail_colors.push(railway.color);
-                    rail_width.push(1);
-                    rail_style.push(0);
-                    rail_points_num.push(num);
-                }
+            if num > 0 {
+                rail_colors.push(railway.color);
+                rail_width.push(1);
+                rail_style.push(0);
+                rail_points_num.push(num);
             }
         }
 
         let mut station_points = vec![];
         let mut station_rendered = std::collections::BTreeSet::<StationIndex>::new();
 
-        for railway in &self.railways {
-            if let Some(railway) = railway {
-                let rail_level = railway.level as usize;
-                if viewport.zoom > RAILWAY_THRESHOLD[rail_level] {
-                    continue;
-                }
-                let railway_points = if Some(railway.unique_id) == opts.selected_rail_id {
-                    &selected_railway_points
-                } else {
-                    &railway.points
-                };
-                for i in 0..railway_points.len() {
-                    if let Some(station_idx) = railway_points[i].station {
-                        if !railway_points[i].station.is_some() {
-                            continue;
-                        }
-                        if !viewport.contains(railway_points[i].coord) {
-                            continue;
-                        }
-                        let station_level = self[station_idx].level as usize;
-                        if viewport.zoom > STATION_THRESHOLD[rail_level][station_level] {
-                            continue;
-                        }
-
-                        let prev = if i == 0 {
-                            None
-                        } else {
-                            Some(railway_points[i - 1].coord)
-                        };
-                        let cur = railway_points[i].coord;
-                        let next = if i + 1 == railway_points.len() {
-                            None
-                        } else {
-                            Some(railway_points[i + 1].coord)
-                        };
-
-                        let (c0, c1) = compute_station_line_segment(prev, cur, next, 200);
-
-                        station_points.push(viewport.to_physical_point(c0));
-                        station_points.push(viewport.to_physical_point(c1));
-
-                        if station_rendered.contains(&station_idx) {
-                            continue;
-                        }
-                        station_rendered.insert(station_idx);
-
-                        let station = &self[station_idx];
-                        let pt = viewport.to_physical_point(railway_points[i].coord);
-                        stations.push(StationRenderingInfo {
-                            name: station.name.clone(),
-                            x: pt.x,
-                            y: pt.y,
-                        });
+        for (id, railway) in self.railways.enumerate() {
+            let rail_level = railway.level as usize;
+            if viewport.zoom > RAILWAY_THRESHOLD[rail_level] {
+                continue;
+            }
+            let railway_points = if Some(id.as_usize()) == opts.selected_rail_id {
+                &selected_railway_points
+            } else {
+                &railway.points
+            };
+            for i in 0..railway_points.len() {
+                if let Some(station_idx) = railway_points[i].station {
+                    if !railway_points[i].station.is_some() {
+                        continue;
                     }
+                    if !viewport.contains(railway_points[i].coord) {
+                        continue;
+                    }
+                    let station_level = self[station_idx].level as usize;
+                    if viewport.zoom > STATION_THRESHOLD[rail_level][station_level] {
+                        continue;
+                    }
+
+                    let prev = if i == 0 {
+                        None
+                    } else {
+                        Some(railway_points[i - 1].coord)
+                    };
+                    let cur = railway_points[i].coord;
+                    let next = if i + 1 == railway_points.len() {
+                        None
+                    } else {
+                        Some(railway_points[i + 1].coord)
+                    };
+
+                    let (c0, c1) = compute_station_line_segment(prev, cur, next, 200);
+
+                    station_points.push(viewport.to_physical_point(c0));
+                    station_points.push(viewport.to_physical_point(c1));
+
+                    if station_rendered.contains(&station_idx) {
+                        continue;
+                    }
+                    station_rendered.insert(station_idx);
+
+                    let station = &self[station_idx];
+                    let pt = viewport.to_physical_point(railway_points[i].coord);
+                    stations.push(StationRenderingInfo {
+                        name: station.name.clone(),
+                        x: pt.x,
+                        y: pt.y,
+                    });
                 }
             }
         }
@@ -707,7 +687,7 @@ impl RerailMap {
     pub fn find_nearest_segment(
         &self,
         viewport: ViewportSpec,
-        rail_id: usize,
+        rail_id: RailwayIndex,
         x: i32,
         y: i32,
         max_dist: i32,
@@ -717,7 +697,7 @@ impl RerailMap {
 
         let threshold = max_dist as i64 * max_dist as i64;
 
-        let railway = RerailMap::find_railway_by_unique_id(&self.railways, rail_id)?;
+        let railway = self.railways.get(rail_id)?;
 
         let mut nearest = (threshold + 1, 0);
 
@@ -766,16 +746,14 @@ impl RerailMap {
     }
 
     #[wasm_bindgen(js_name = getStationInfo)]
-    pub fn get_station_info(&self, rail_id: usize, point_idx: usize) -> Option<StationInfo> {
-        let railway = RerailMap::find_railway_by_unique_id(&self.railways, rail_id);
-        if let Some(railway) = railway {
-            if let Some(station_idx) = railway.points[point_idx].station {
-                let station = &self[station_idx];
-                return Some(StationInfo {
-                    name: station.name.clone(),
-                    level: station.level,
-                });
-            }
+    pub fn get_station_info(&self, rail_id: RailwayIndex, point_idx: usize) -> Option<StationInfo> {
+        let railway = self.railways.get(rail_id)?;
+        if let Some(station_idx) = railway.points[point_idx].station {
+            let station = &self[station_idx];
+            return Some(StationInfo {
+                name: station.name.clone(),
+                level: station.level,
+            });
         }
         None
     }
@@ -783,11 +761,11 @@ impl RerailMap {
     #[wasm_bindgen(js_name = setStationInfo)]
     pub fn set_station_info(
         mut self,
-        rail_id: usize,
+        rail_id: RailwayIndex,
         point_idx: usize,
         info: StationInfo,
     ) -> RerailMap {
-        let railway = RerailMap::find_railway_by_unique_id_mut(&mut self.railways, rail_id);
+        let railway = self.railways.get_mut(rail_id);
         if let Some(railway) = railway {
             if let Some(station_idx) = railway.points[point_idx].station {
                 self[station_idx].name = info.name;
@@ -797,15 +775,15 @@ impl RerailMap {
                 self.stations
                     .push(Some(Station::new(info.name, info.level)));
                 railway.points[point_idx].station = Some(station_idx);
-                self[station_idx].add_railway(RailwayIndex(rail_id));
+                self[station_idx].add_railway(rail_id);
             }
         }
         self
     }
 
     #[wasm_bindgen(js_name = getRailwayInfo)]
-    pub fn get_railway_info(&self, rail_id: usize) -> RailwayInfo {
-        let railway = RerailMap::find_railway_by_unique_id(&self.railways, rail_id).unwrap();
+    pub fn get_railway_info(&self, rail_id: RailwayIndex) -> RailwayInfo {
+        let railway = &self.railways[rail_id];
         RailwayInfo {
             name: railway.name.clone(),
             level: railway.level,
@@ -816,9 +794,8 @@ impl RerailMap {
     }
 
     #[wasm_bindgen(js_name = setRailwayInfo)]
-    pub fn set_railway_info(mut self, rail_id: usize, info: RailwayInfo) -> RerailMap {
-        let railway =
-            RerailMap::find_railway_by_unique_id_mut(&mut self.railways, rail_id).unwrap();
+    pub fn set_railway_info(mut self, rail_id: RailwayIndex, info: RailwayInfo) -> RerailMap {
+        let railway = &mut self.railways[rail_id];
         railway.name = info.name;
         railway.level = info.level;
         railway.color = Color {
@@ -830,8 +807,8 @@ impl RerailMap {
     }
 
     #[wasm_bindgen(js_name = stationListOnRailway)]
-    pub fn station_list_on_railway(&self, rail_id: usize) -> StationListOnRailway {
-        let railway = RerailMap::find_railway_by_unique_id(&self.railways, rail_id).unwrap();
+    pub fn station_list_on_railway(&self, rail_id: RailwayIndex) -> StationListOnRailway {
+        let railway = &self.railways[rail_id];
         let mut cur_distance = 0.0f64;
         let mut names = vec![];
         let mut distances = vec![];
@@ -853,51 +830,6 @@ impl RerailMap {
 
         StationListOnRailway { names, distances }
     }
-
-    fn get_railway_index(&self, unique_id: usize) -> RailwayIndex {
-        for i in 0..self.railways.len() {
-            if let Some(railway) = &self.railways[i] {
-                if railway.unique_id == unique_id {
-                    return RailwayIndex(i);
-                }
-            }
-        }
-        panic!();
-    }
-
-    fn find_railway_by_unique_id<'a>(
-        railways: &'a [Option<Railway>],
-        unique_id: usize,
-    ) -> Option<&'a Railway> {
-        railways.iter().find_map(|railway| {
-            if let Some(railway) = railway {
-                if railway.unique_id == unique_id {
-                    Some(railway)
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
-        })
-    }
-
-    fn find_railway_by_unique_id_mut<'a>(
-        railways: &'a mut [Option<Railway>],
-        unique_id: usize,
-    ) -> Option<&'a mut Railway> {
-        railways.iter_mut().find_map(|railway| {
-            if let Some(railway) = railway {
-                if railway.unique_id == unique_id {
-                    Some(railway)
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
-        })
-    }
 }
 
 impl Index<StationIndex> for RerailMap {
@@ -912,7 +844,7 @@ impl Index<RailwayIndex> for RerailMap {
     type Output = Railway;
 
     fn index(&self, index: RailwayIndex) -> &Self::Output {
-        self.railways[index.0].as_ref().unwrap()
+        &self.railways[index]
     }
 }
 
@@ -932,7 +864,7 @@ impl IndexMut<StationIndex> for RerailMap {
 
 impl IndexMut<RailwayIndex> for RerailMap {
     fn index_mut(&mut self, index: RailwayIndex) -> &mut Self::Output {
-        self.railways[index.0].as_mut().unwrap()
+        &mut self.railways[index]
     }
 }
 

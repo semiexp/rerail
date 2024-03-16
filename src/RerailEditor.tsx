@@ -272,6 +272,13 @@ export const RerailEditor = (props: RerailEditorProps) => {
             props.setRailwayMap(
               props.railwayMap!.removeBorderPoint(nearest.point),
             );
+          } else {
+            props.setRailwayMap(
+              props.railwayMap!.removeBorderEdge(
+                nearest.segment[0],
+                nearest.segment[1],
+              ),
+            );
           }
         } else {
           setState({

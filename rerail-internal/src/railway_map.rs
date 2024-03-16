@@ -460,6 +460,21 @@ impl RerailMap {
         self
     }
 
+    #[wasm_bindgen(js_name = removeBorderEdge)]
+    pub fn remove_border_edge(mut self, i: BorderPointIndex, j: BorderPointIndex) -> RerailMap {
+        self.border_points[i].remove_neighbor(j);
+        self.border_points[j].remove_neighbor(i);
+
+        if self.border_points[i].neighbors.len() == 0 {
+            self.border_points.delete(i);
+        }
+        if self.border_points[j].neighbors.len() == 0 {
+            self.border_points.delete(j);
+        }
+
+        self
+    }
+
     #[wasm_bindgen(js_name = removeRailwayPoint)]
     pub fn remove_railway_point(mut self, railway_id: RailwayIndex, i: usize) -> RerailMap {
         self = self.detach_station_on_railway(railway_id, i);

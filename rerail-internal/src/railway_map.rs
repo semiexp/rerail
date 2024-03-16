@@ -94,6 +94,10 @@ impl BorderPoint {
         self.neighbors.push((neighbor, level));
     }
 
+    pub fn has_neighbor(&mut self, neighbor: BorderPointIndex) -> bool {
+        self.get_level(neighbor).is_some()
+    }
+
     pub fn get_level(&self, neighbor: BorderPointIndex) -> Option<u8> {
         for &(j, level) in &self.neighbors {
             if neighbor == j {
@@ -425,6 +429,34 @@ impl RerailMap {
         self.border_points[k].add_neighbor(i, level);
         self.border_points[j].add_neighbor(k, level);
         self.border_points[k].add_neighbor(j, level);
+        self
+    }
+
+    #[wasm_bindgen(js_name = removeBorderPoint)]
+    pub fn remove_border_point(mut self, i: BorderPointIndex) -> RerailMap {
+        let n_adj = self.border_points[i].neighbors.len();
+        if n_adj < 3 {
+            if n_adj == 1 {
+                let j = self.border_points[i].neighbors[0].0;
+                self.border_points[i].remove_neighbor(j);
+                self.border_points[j].remove_neighbor(i);
+            } else if n_adj == 2 {
+                let (j, jl) = self.border_points[i].neighbors[0];
+                let (k, kl) = self.border_points[i].neighbors[1];
+                self.border_points[i].remove_neighbor(j);
+                self.border_points[j].remove_neighbor(i);
+                self.border_points[i].remove_neighbor(k);
+                self.border_points[k].remove_neighbor(i);
+
+                if !self.border_points[j].has_neighbor(k) {
+                    let level = jl.min(kl);
+                    self.border_points[j].add_neighbor(k, level);
+                    self.border_points[k].add_neighbor(j, level);
+                }
+            }
+            self.border_points.delete(i);
+        }
+
         self
     }
 

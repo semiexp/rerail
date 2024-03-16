@@ -267,12 +267,20 @@ export const RerailEditor = (props: RerailEditorProps) => {
       };
       const nearest = props.railwayMap?.findNearestBorder(viewport, x, y, 10);
       if (nearest) {
-        setState({
-          ...state,
-          editorPhase: "border-moving",
-          selectedBorderIndex: nearest,
-          mouse: { x, y },
-        });
+        if (e.button === 2) {
+          if ("point" in nearest) {
+            props.setRailwayMap(
+              props.railwayMap!.removeBorderPoint(nearest.point),
+            );
+          }
+        } else {
+          setState({
+            ...state,
+            editorPhase: "border-moving",
+            selectedBorderIndex: nearest,
+            mouse: { x, y },
+          });
+        }
       }
     }
   };

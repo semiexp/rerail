@@ -95,20 +95,16 @@ impl BorderPoint {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub struct StationIndex(usize);
-
+pub type StationIndex = SparseArrayId<Station>;
 pub type RailwayIndex = SparseArrayId<Railway>;
-
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub struct BorderPointIndex(usize);
+pub type BorderPointIndex = SparseArrayId<BorderPoint>;
 
 #[wasm_bindgen]
 #[derive(Serialize, Deserialize)]
 pub struct RerailMap {
-    stations: Vec<Option<Station>>,
+    stations: SparseArray<Station>,
     railways: SparseArray<Railway>,
-    border_points: Vec<Option<BorderPoint>>,
+    border_points: SparseArray<BorderPoint>,
     railway_unique_id_last: usize,
 }
 
@@ -283,17 +279,15 @@ const RAILWAY_THRESHOLD: [i32; 4] = [100, 200, 200, 10000];
 impl RerailMap {
     pub fn new() -> RerailMap {
         RerailMap {
-            stations: vec![],
+            stations: SparseArray::new(),
             railways: SparseArray::new(),
-            border_points: vec![],
+            border_points: SparseArray::new(),
             railway_unique_id_last: 0,
         }
     }
 
     pub(crate) fn add_station(&mut self, station: Station) -> StationIndex {
-        let ret = StationIndex(self.stations.len());
-        self.stations.push(Some(station));
-        ret
+        self.stations.push(station)
     }
 
     pub(crate) fn new_railway(&mut self, name: String, color: Color, level: u8) -> RailwayIndex {
@@ -307,9 +301,7 @@ impl RerailMap {
     }
 
     pub(crate) fn add_border_point(&mut self, border_point: BorderPoint) -> BorderPointIndex {
-        let ret = BorderPointIndex(self.border_points.len());
-        self.border_points.push(Some(border_point));
-        ret
+        self.border_points.push(border_point)
     }
 
     pub fn load(data: &[u8]) -> RerailMap {
@@ -387,7 +379,7 @@ impl RerailMap {
             railway.points[i].station = None;
             self[station_idx].remove_railway(railway_id);
             if self[station_idx].railways.is_empty() {
-                self.stations[station_idx.0] = None;
+                self.stations.delete(station_idx);
             }
         }
 
@@ -626,23 +618,19 @@ impl RerailMap {
 
         let mut border_points = vec![vec![]; 3];
 
-        for i in 0..self.border_points.len() {
-            if let Some(pt) = &self.border_points[i] {
-                if opts.marker_on_border_points {
-                    if viewport.contains(pt.coord) {
-                        marker_points.push(viewport.to_physical_point(pt.coord));
-                    }
+        for (i, pt) in self.border_points.enumerate() {
+            if opts.marker_on_border_points {
+                if viewport.contains(pt.coord) {
+                    marker_points.push(viewport.to_physical_point(pt.coord));
                 }
-                for &(j, level) in &pt.neighbors {
-                    if i < j.0 {
-                        let pt2 = &self[j];
-                        assert!(level < 3);
-                        if viewport.crosses_with_line_segment(pt.coord, pt2.coord) {
-                            border_points[level as usize]
-                                .push(viewport.to_physical_point(pt.coord));
-                            border_points[level as usize]
-                                .push(viewport.to_physical_point(pt2.coord));
-                        }
+            }
+            for &(j, level) in &pt.neighbors {
+                if i < j {
+                    let pt2 = &self[j];
+                    assert!(level < 3);
+                    if viewport.crosses_with_line_segment(pt.coord, pt2.coord) {
+                        border_points[level as usize].push(viewport.to_physical_point(pt.coord));
+                        border_points[level as usize].push(viewport.to_physical_point(pt2.coord));
                     }
                 }
             }
@@ -771,9 +759,7 @@ impl RerailMap {
                 self[station_idx].name = info.name;
                 self[station_idx].level = info.level;
             } else {
-                let station_idx = StationIndex(self.stations.len());
-                self.stations
-                    .push(Some(Station::new(info.name, info.level)));
+                let station_idx = self.stations.push(Station::new(info.name, info.level));
                 railway.points[point_idx].station = Some(station_idx);
                 self[station_idx].add_railway(rail_id);
             }
@@ -836,7 +822,7 @@ impl Index<StationIndex> for RerailMap {
     type Output = Station;
 
     fn index(&self, index: StationIndex) -> &Self::Output {
-        self.stations[index.0].as_ref().unwrap()
+        &self.stations[index]
     }
 }
 
@@ -852,13 +838,13 @@ impl Index<BorderPointIndex> for RerailMap {
     type Output = BorderPoint;
 
     fn index(&self, index: BorderPointIndex) -> &Self::Output {
-        self.border_points[index.0].as_ref().unwrap()
+        &self.border_points[index]
     }
 }
 
 impl IndexMut<StationIndex> for RerailMap {
     fn index_mut(&mut self, index: StationIndex) -> &mut Self::Output {
-        self.stations[index.0].as_mut().unwrap()
+        &mut self.stations[index]
     }
 }
 
@@ -870,6 +856,6 @@ impl IndexMut<RailwayIndex> for RerailMap {
 
 impl IndexMut<BorderPointIndex> for RerailMap {
     fn index_mut(&mut self, index: BorderPointIndex) -> &mut Self::Output {
-        self.border_points[index.0].as_mut().unwrap()
+        &mut self.border_points[index]
     }
 }

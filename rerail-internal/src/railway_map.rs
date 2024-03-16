@@ -98,6 +98,14 @@ impl BorderPoint {
         self.get_level(neighbor).is_some()
     }
 
+    pub fn update_level(&mut self, neighbor: BorderPointIndex, level: u8) {
+        for i in 0..self.neighbors.len() {
+            if self.neighbors[i].0 == neighbor {
+                self.neighbors[i].1 = level;
+            }
+        }
+    }
+
     pub fn get_level(&self, neighbor: BorderPointIndex) -> Option<u8> {
         for &(j, level) in &self.neighbors {
             if neighbor == j {
@@ -186,6 +194,15 @@ pub struct TemporaryMovingBorderPoint {
     point_after_move: PhysicalCoord,
 }
 
+#[derive(Clone, Copy, Tsify, Serialize, Deserialize)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+pub struct ExtraBorderSegment {
+    point: BorderPointIndex,
+    #[serde(rename = "newPoint")]
+    new_point: PhysicalCoord,
+    level: u8,
+}
+
 #[derive(Tsify, Serialize, Deserialize)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
 pub struct RenderingOptions {
@@ -201,6 +218,9 @@ pub struct RenderingOptions {
     #[tsify(optional)]
     #[serde(rename = "temporaryMovingBorderPoint")]
     temporary_moving_border_point: Option<TemporaryMovingBorderPoint>,
+    #[tsify(optional)]
+    #[serde(rename = "extraBorderSegment")]
+    extra_border_segment: Option<ExtraBorderSegment>,
 }
 
 #[derive(Tsify, Serialize, Deserialize)]
@@ -429,6 +449,37 @@ impl RerailMap {
         self.border_points[k].add_neighbor(i, level);
         self.border_points[j].add_neighbor(k, level);
         self.border_points[k].add_neighbor(j, level);
+        self
+    }
+
+    #[wasm_bindgen(js_name = connectToNewBorderPoint)]
+    pub fn connect_to_new_border_point(
+        mut self,
+        i: BorderPointIndex,
+        x: i32,
+        y: i32,
+        level: u8,
+    ) -> RerailMap {
+        let j = self.border_points.push(BorderPoint::new(Coord { x, y }));
+        self.border_points[i].add_neighbor(j, level);
+        self.border_points[j].add_neighbor(i, level);
+        self
+    }
+
+    #[wasm_bindgen(js_name = connectExistingBorderPoints)]
+    pub fn connect_existing_border_points(
+        mut self,
+        i: BorderPointIndex,
+        j: BorderPointIndex,
+        level: u8,
+    ) -> RerailMap {
+        if self.border_points[i].has_neighbor(j) {
+            self.border_points[i].update_level(j, level);
+            self.border_points[j].update_level(i, level);
+        } else {
+            self.border_points[i].add_neighbor(j, level);
+            self.border_points[j].add_neighbor(i, level);
+        }
         self
     }
 
@@ -791,6 +842,13 @@ impl RerailMap {
                 border_points[level as usize].push(viewport.to_physical_point(c2));
                 border_points[level as usize].push(temporary_moving_border_point.point_after_move);
             }
+        }
+        if let Some(extra) = opts.extra_border_segment {
+            let level = extra.level as usize;
+            assert!(level < 3);
+            border_points[level]
+                .push(viewport.to_physical_point(self.border_points[extra.point].coord));
+            border_points[level].push(extra.new_point);
         }
 
         for level in 0..3 {

@@ -27,6 +27,7 @@ type RerailEditorProps = {
   setViewport: (x: number, y: number, zoomLevel: number) => void;
   setRailwayMap: (map: RerailMap) => void;
   railwayMap: RerailMap | null;
+  newBorderStyle: number;
 };
 
 type EditorPhase =
@@ -34,7 +35,8 @@ type EditorPhase =
   | "viewport-moving"
   | "point-moving"
   | "station-linking"
-  | "border-moving";
+  | "border-moving"
+  | "border-adding";
 
 type RerailEditorStateType = {
   canvasHeight: number;
@@ -112,6 +114,17 @@ export const RerailEditor = (props: RerailEditorProps) => {
         pointAfterMove: state.mouse!,
       };
     }
+    let extraBorderSegment = undefined;
+    if (state.editorPhase === "border-adding") {
+      const idx = state.selectedBorderIndex!;
+      if ("point" in idx) {
+        extraBorderSegment = {
+          point: idx.point,
+          newPoint: state.mouse!,
+          level: props.newBorderStyle,
+        };
+      }
+    }
     const renderInfo = railwayMap.render(viewport, {
       selectedRailId:
         state.selectedRailId !== null && props.editorMode !== "borders"
@@ -120,6 +133,7 @@ export const RerailEditor = (props: RerailEditorProps) => {
       temporaryMovingPoint,
       markerOnBorderPoints: props.editorMode === "borders",
       temporaryMovingBorderPoint,
+      extraBorderSegment,
     });
 
     const canvas = canvasRef.current!;
@@ -267,26 +281,37 @@ export const RerailEditor = (props: RerailEditorProps) => {
       };
       const nearest = props.railwayMap?.findNearestBorder(viewport, x, y, 10);
       if (nearest) {
-        if (e.button === 2) {
+        if (e.ctrlKey) {
           if ("point" in nearest) {
-            props.setRailwayMap(
-              props.railwayMap!.removeBorderPoint(nearest.point),
-            );
-          } else {
-            props.setRailwayMap(
-              props.railwayMap!.removeBorderEdge(
-                nearest.segment[0],
-                nearest.segment[1],
-              ),
-            );
+            setState({
+              ...state,
+              editorPhase: "border-adding",
+              selectedBorderIndex: nearest,
+              mouse: { x, y },
+            });
           }
         } else {
-          setState({
-            ...state,
-            editorPhase: "border-moving",
-            selectedBorderIndex: nearest,
-            mouse: { x, y },
-          });
+          if (e.button === 2) {
+            if ("point" in nearest) {
+              props.setRailwayMap(
+                props.railwayMap!.removeBorderPoint(nearest.point),
+              );
+            } else {
+              props.setRailwayMap(
+                props.railwayMap!.removeBorderEdge(
+                  nearest.segment[0],
+                  nearest.segment[1],
+                ),
+              );
+            }
+          } else {
+            setState({
+              ...state,
+              editorPhase: "border-moving",
+              selectedBorderIndex: nearest,
+              mouse: { x, y },
+            });
+          }
         }
       }
     }
@@ -317,6 +342,11 @@ export const RerailEditor = (props: RerailEditorProps) => {
         mouse: { x, y },
       });
     } else if (state.editorPhase === "border-moving") {
+      setState({
+        ...state,
+        mouse: { x, y },
+      });
+    } else if (state.editorPhase === "border-adding") {
       setState({
         ...state,
         mouse: { x, y },
@@ -440,6 +470,52 @@ export const RerailEditor = (props: RerailEditorProps) => {
         selectedBorderIndex: undefined,
         mouse: undefined,
       });
+    } else if (state.editorPhase === "border-adding") {
+      const viewport: ViewportSpec = {
+        leftX: props.topX,
+        topY: props.topY,
+        height: state.canvasHeight,
+        width: state.canvasWidth,
+        zoom: zoomLevels[props.zoomLevel],
+      };
+      const map = props.railwayMap!;
+      const x = state.mouse!.x * zoomLevels[props.zoomLevel] + props.topX;
+      const y = state.mouse!.y * zoomLevels[props.zoomLevel] + props.topY;
+
+      const selected = state.selectedBorderIndex!;
+      if ("point" in selected) {
+        const target = map.findNearestBorder(
+          viewport,
+          state.mouse!.x,
+          state.mouse!.y,
+          10,
+        );
+        if (target !== undefined && "point" in target) {
+          props.setRailwayMap(
+            map.connectExistingBorderPoints(
+              selected.point,
+              target.point,
+              props.newBorderStyle,
+            ),
+          );
+        } else {
+          props.setRailwayMap(
+            map.connectToNewBorderPoint(
+              selected.point,
+              x,
+              y,
+              props.newBorderStyle,
+            ),
+          );
+        }
+      }
+
+      setState({
+        ...state,
+        editorPhase: "none",
+        selectedBorderIndex: undefined,
+        mouse: undefined,
+      });
     }
   };
 
@@ -546,6 +622,8 @@ export const RerailEditor = (props: RerailEditorProps) => {
       cursor = "pointer";
     }
   } else if (state.editorPhase === "border-moving") {
+    cursor = "pointer";
+  } else if (state.editorPhase === "border-adding") {
     cursor = "pointer";
   }
 

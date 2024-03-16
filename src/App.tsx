@@ -10,6 +10,7 @@ import iconStation from "./assets/station.svg";
 import iconBorders from "./assets/borders.svg";
 import { ButtonGroup, IconButton } from "@mui/material";
 import { FileOpen, Save } from "@mui/icons-material";
+import { BorderSelecter } from "./BorderSelecter";
 
 type RerailAppState = {
   viewportTopX: number;
@@ -17,6 +18,7 @@ type RerailAppState = {
   viewportZoomLevel: number;
   railwayMap: RerailMap | null;
   editorMode: EditorMode;
+  selectedBorderStyle: number;
 };
 
 function App() {
@@ -26,6 +28,7 @@ function App() {
     viewportZoomLevel: 5,
     railwayMap: null,
     editorMode: "move",
+    selectedBorderStyle: 0,
   });
 
   const fileElementRef = useRef<HTMLInputElement>(null);
@@ -149,6 +152,12 @@ function App() {
           >
             <img src={iconBorders} height={24} />
           </ToggleButton>
+          <BorderSelecter
+            value={appState.selectedBorderStyle}
+            onChange={(v) =>
+              setAppState({ ...appState, selectedBorderStyle: v })
+            }
+          />
         </ToggleButtonGroup>
       </div>
       <div style={{ flex: 1, overflow: "hidden" }}>
@@ -167,6 +176,7 @@ function App() {
           }
           setRailwayMap={(map) => setAppState({ ...appState, railwayMap: map })}
           railwayMap={appState.railwayMap}
+          newBorderStyle={appState.selectedBorderStyle}
         />
       </div>
     </div>

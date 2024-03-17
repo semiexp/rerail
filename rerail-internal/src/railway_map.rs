@@ -473,6 +473,9 @@ impl RerailMap {
         j: BorderPointIndex,
         level: u8,
     ) -> RerailMap {
+        if i == j {
+            return self;
+        }
         if self.border_points[i].has_neighbor(j) {
             self.border_points[i].update_level(j, level);
             self.border_points[j].update_level(i, level);

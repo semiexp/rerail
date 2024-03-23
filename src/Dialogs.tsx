@@ -75,8 +75,18 @@ export const StationDialog = forwardRef((_props, ref) => {
     });
   };
 
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      onClick(false);
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      onClick(true);
+    }
+  };
+
   return (
-    <Dialog open={state.open}>
+    <Dialog open={state.open} onKeyDown={onKeyDown}>
       <DialogTitle>駅設定</DialogTitle>
       <DialogContent>
         <TextField
@@ -198,10 +208,20 @@ export const RailwayDialog = forwardRef((_props, ref) => {
     });
   };
 
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      onClick(false);
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      onClick(true);
+    }
+  };
+
   const color = "#" + ("000000" + state.value.color.toString(16)).slice(-6);
 
   return (
-    <Dialog open={state.open}>
+    <Dialog open={state.open} onKeyDown={onKeyDown}>
       <DialogTitle>路線設定</DialogTitle>
       <DialogContent>
         <div>
@@ -262,6 +282,7 @@ export type StationListDialogRefType = {
 };
 
 export const StationListDialog = forwardRef((_props, ref) => {
+  const [isOpen, setIsOpen] = useState(false);
   const [stationList, setStationList] = useState<StationListOnRailway | null>(
     null,
   );
@@ -272,6 +293,7 @@ export const StationListDialog = forwardRef((_props, ref) => {
       return {
         open(s: StationListOnRailway) {
           setStationList(s);
+          setIsOpen(true);
         },
       };
     },
@@ -294,8 +316,15 @@ export const StationListDialog = forwardRef((_props, ref) => {
     }
   }
 
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      setIsOpen(false);
+    }
+  };
+
   return (
-    <Dialog open={stationList !== null} fullWidth>
+    <Dialog open={isOpen} onKeyDown={onKeyDown} fullWidth>
       <DialogTitle>駅一覧</DialogTitle>
       <DialogContent style={{ height: "100%" }}>
         <table style={{ width: "100%" }} cellSpacing={0} border={1}>
@@ -331,7 +360,7 @@ export const StationListDialog = forwardRef((_props, ref) => {
         </table>
       </DialogContent>
       <DialogActions>
-        <Button onClick={() => setStationList(null)}>閉じる</Button>
+        <Button onClick={() => setIsOpen(false)}>閉じる</Button>
       </DialogActions>
     </Dialog>
   );

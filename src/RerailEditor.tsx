@@ -210,7 +210,29 @@ export const RerailEditor = (props: RerailEditorProps) => {
         y,
         10,
       );
-      if (e.button === 2) {
+      // if ctrl-key is pressed, extend the railway
+      if (e.ctrlKey) {
+        if (nearest && !nearest.inserting) {
+          const numPoints = props.railwayMap!.getNumberOfPointsOnRailway(
+            state.selectedRailId!,
+          );
+          if (nearest.index === 0) {
+            setState({
+              ...state,
+              editorPhase: "point-moving",
+              selectedIndex: { index: 0, inserting: true },
+              mouse: { x, y },
+            });
+          } else if (nearest.index === numPoints - 1) {
+            setState({
+              ...state,
+              editorPhase: "point-moving",
+              selectedIndex: { index: numPoints, inserting: true },
+              mouse: { x, y },
+            });
+          }
+        }
+      } else if (e.button === 2) {
         if (nearest && !nearest.inserting) {
           props.setRailwayMap(
             props.railwayMap!.removeRailwayPoint(

@@ -999,6 +999,11 @@ impl RerailMap {
         None
     }
 
+    #[wasm_bindgen(js_name = getNumberOfPointsOnRailway)]
+    pub fn get_number_of_points_on_railway(&self, rail_id: RailwayIndex) -> usize {
+        self.railways[rail_id].points.len()
+    }
+
     #[wasm_bindgen(js_name = getStationInfo)]
     pub fn get_station_info(&self, rail_id: RailwayIndex, point_idx: usize) -> Option<StationInfo> {
         let railway = self.railways.get(rail_id)?;

@@ -1,4 +1,4 @@
-import { ChangeEvent, useRef, useState } from "react";
+import { ChangeEvent, useEffect, useRef, useState } from "react";
 import { RerailMap } from "./RerailMap";
 import { RerailEditor, EditorMode } from "./RerailEditor";
 
@@ -63,6 +63,41 @@ function App() {
     a.click();
     URL.revokeObjectURL(url);
   };
+  const onKeyDown = (e: KeyboardEvent) => {
+    // do not respond if the focus is on an input element
+    if (document.activeElement instanceof HTMLInputElement) {
+      return;
+    }
+    if (e.key === "m") {
+      setAppState((appState) => ({
+        ...appState,
+        editorMode: "move",
+      }));
+    } else if (e.key === "r") {
+      setAppState((appState) => ({
+        ...appState,
+        editorMode: "railway",
+      }));
+    } else if (e.key === "s") {
+      setAppState((appState) => ({
+        ...appState,
+        editorMode: "station",
+      }));
+    } else if (e.key === "b") {
+      setAppState((appState) => ({
+        ...appState,
+        editorMode: "borders",
+      }));
+    }
+  };
+
+  // add keyboard event handler to body component
+  useEffect(() => {
+    document.body.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.removeEventListener("keydown", onKeyDown);
+    };
+  }, []);
 
   return (
     <div

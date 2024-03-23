@@ -86,16 +86,17 @@ export const RerailEditor = (props: RerailEditorProps) => {
     initialRerailEditorState,
   );
 
+  const viewport = {
+    leftX: props.topX,
+    topY: props.topY,
+    height: state.canvasHeight,
+    width: state.canvasWidth,
+    zoom: zoomLevels[props.zoomLevel],
+  };
+
   useEffect(() => {
     if (!props.railwayMap) return;
     const railwayMap = props.railwayMap;
-    const viewport: ViewportSpec = {
-      leftX: props.topX,
-      topY: props.topY,
-      height: state.canvasHeight,
-      width: state.canvasWidth,
-      zoom: zoomLevels[props.zoomLevel],
-    };
 
     let temporaryMovingPoint = undefined;
     if (
@@ -230,13 +231,6 @@ export const RerailEditor = (props: RerailEditorProps) => {
       }
     }
     if (transitionToStationLinking) {
-      const viewport: ViewportSpec = {
-        leftX: props.topX,
-        topY: props.topY,
-        height: state.canvasHeight,
-        width: state.canvasWidth,
-        zoom: zoomLevels[props.zoomLevel],
-      };
       const nearest = props.railwayMap?.findNearestSegment(
         viewport,
         state.selectedRailId!,
@@ -272,13 +266,6 @@ export const RerailEditor = (props: RerailEditorProps) => {
       }
     }
     if (transitionToBorderMoving) {
-      const viewport: ViewportSpec = {
-        leftX: props.topX,
-        topY: props.topY,
-        height: state.canvasHeight,
-        width: state.canvasWidth,
-        zoom: zoomLevels[props.zoomLevel],
-      };
       const nearest = props.railwayMap?.findNearestBorder(viewport, x, y, 10);
       if (nearest) {
         if (e.ctrlKey) {
@@ -397,13 +384,6 @@ export const RerailEditor = (props: RerailEditorProps) => {
     } else if (state.editorPhase === "station-linking") {
       if (state.moved) {
         // link station
-        const viewport: ViewportSpec = {
-          leftX: props.topX,
-          topY: props.topY,
-          height: state.canvasHeight,
-          width: state.canvasWidth,
-          zoom: zoomLevels[props.zoomLevel],
-        };
         props.setRailwayMap(
           props.railwayMap!.linkToStation(
             state.selectedRailId!,
@@ -471,13 +451,6 @@ export const RerailEditor = (props: RerailEditorProps) => {
         mouse: undefined,
       });
     } else if (state.editorPhase === "border-adding") {
-      const viewport: ViewportSpec = {
-        leftX: props.topX,
-        topY: props.topY,
-        height: state.canvasHeight,
-        width: state.canvasWidth,
-        zoom: zoomLevels[props.zoomLevel],
-      };
       const map = props.railwayMap!;
       const x = state.mouse!.x * zoomLevels[props.zoomLevel] + props.topX;
       const y = state.mouse!.y * zoomLevels[props.zoomLevel] + props.topY;

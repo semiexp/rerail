@@ -53,13 +53,14 @@ type RerailEditorStateType = {
 
   // point-moving & station-linking
   selectedIndex?: IndexOnRailway;
-  mouse?: { x: number; y: number };
 
   // station-linking
   moved?: boolean;
 
   // border-moving
   selectedBorderIndex?: BorderPointOrSegment;
+
+  mouse?: { x: number; y: number };
 };
 
 const initialRerailEditorState: RerailEditorStateType = {
@@ -618,6 +619,32 @@ export const RerailEditor = (props: RerailEditorProps) => {
   } else if (state.editorPhase === "border-adding") {
     cursor = "pointer";
   }
+
+  const escapeKeyHandler = (e: KeyboardEvent) => {
+    if (e.key === "Escape") {
+      setState((state) => {
+        // reset editorPhase as well as optional states
+        return {
+          ...state,
+          editorPhase: "none",
+          mouseXOnMouseDown: undefined,
+          mouseYOnMouseDown: undefined,
+          topXOnMouseDown: undefined,
+          topYOnMouseDown: undefined,
+          selectedIndex: undefined,
+          selectedBorderIndex: undefined,
+          moved: undefined,
+        };
+      });
+    }
+  };
+
+  useEffect(() => {
+    document.body.addEventListener("keydown", escapeKeyHandler);
+    return () => {
+      document.body.removeEventListener("keydown", escapeKeyHandler);
+    };
+  }, []);
 
   return (
     <div

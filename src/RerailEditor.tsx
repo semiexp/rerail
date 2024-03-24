@@ -571,10 +571,12 @@ export const RerailEditor = (props: RerailEditorProps) => {
 
   useEffect(setCanvasSize, [sidebarWidth]);
   useEffect(() => {
-    window.addEventListener("resize", () => {
-      setCanvasSize();
-    });
+    window.addEventListener("resize", setCanvasSize);
     setCanvasSize();
+
+    return () => {
+      window.removeEventListener("resize", setCanvasSize);
+    };
   }, []);
 
   const onSelectRailway = (id: number) => {

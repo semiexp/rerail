@@ -173,22 +173,7 @@ export const RerailEditor = (props: RerailEditorProps) => {
     const y = e.clientY - (e.target as HTMLCanvasElement).offsetTop;
 
     const editorMode = props.editorMode;
-    const transitionToViewportMoving = editorMode === "move" || e.shiftKey;
-    const transitionToPointMoving =
-      !transitionToViewportMoving &&
-      editorMode === "railway" &&
-      state.selectedRailId !== null;
-    const transitionToStationLinking =
-      editorMode === "station" &&
-      !transitionToViewportMoving &&
-      !transitionToPointMoving;
-    const transitionToBorderMoving =
-      editorMode === "borders" &&
-      !transitionToViewportMoving &&
-      !transitionToPointMoving &&
-      !transitionToStationLinking;
-
-    if (transitionToViewportMoving) {
+    if (editorMode === "move" || e.shiftKey) {
       setState({
         ...state,
         editorPhase: "viewport-moving",
@@ -197,8 +182,10 @@ export const RerailEditor = (props: RerailEditorProps) => {
         topXOnMouseDown: props.topX,
         topYOnMouseDown: props.topY,
       });
-    }
-    if (transitionToPointMoving) {
+    } else if (editorMode === "railway") {
+      if (state.selectedRailId === null) {
+        return;
+      }
       const viewport: ViewportSpec = {
         leftX: props.topX,
         topY: props.topY,
@@ -254,8 +241,10 @@ export const RerailEditor = (props: RerailEditorProps) => {
           });
         }
       }
-    }
-    if (transitionToStationLinking) {
+    } else if (editorMode === "station") {
+      if (state.selectedRailId === null) {
+        return;
+      }
       const nearest = props.railwayMap?.findNearestSegment(
         viewport,
         state.selectedRailId!,
@@ -289,8 +278,7 @@ export const RerailEditor = (props: RerailEditorProps) => {
           });
         }
       }
-    }
-    if (transitionToBorderMoving) {
+    } else if (editorMode === "borders") {
       const nearest = props.railwayMap?.findNearestBorder(
         viewport,
         x,

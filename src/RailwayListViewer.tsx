@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
+import { ConfirmationDialog, ConfirmationDialogRefType } from "./Dialogs";
 import { ViewportRailwayList } from "./RerailMap";
 import { Menu, MenuItem } from "@mui/material";
 
@@ -8,6 +9,7 @@ type RailwayListViewerProps = {
   onSelect: (id: number) => void;
   onOpenRailwayConfig: (id: number) => void;
   onOpenStationList: (id: number) => void;
+  onDeleteRailway: (id: number) => void;
 };
 
 export const RailwayListViewer = (props: RailwayListViewerProps) => {
@@ -20,6 +22,8 @@ export const RailwayListViewer = (props: RailwayListViewerProps) => {
     mouseY: number;
     selectedRail: number;
   } | null>(null);
+
+  const confirmationDialogRef = useRef<ConfirmationDialogRefType>(null);
 
   let items = [];
   for (let i = 0; i < railNames.length; ++i) {
@@ -92,7 +96,24 @@ export const RailwayListViewer = (props: RailwayListViewerProps) => {
         >
           駅一覧
         </MenuItem>
+        <MenuItem
+          onClick={async () => {
+            if (contextMenu !== null) {
+              setContextMenu(null);
+              const result =
+                await confirmationDialogRef.current!.open(
+                  "路線を削除しますか？",
+                );
+              if (result) {
+                props.onDeleteRailway(contextMenu.selectedRail);
+              }
+            }
+          }}
+        >
+          路線を削除
+        </MenuItem>
       </Menu>
+      <ConfirmationDialog ref={confirmationDialogRef} />
     </div>
   );
 };

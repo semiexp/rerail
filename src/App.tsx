@@ -5,6 +5,7 @@ import { RerailEditor, EditorMode } from "./RerailEditor";
 import ToggleButton from "@mui/material/ToggleButton";
 import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import iconMove from "./assets/move.svg";
+import iconNewRailway from "./assets/newRailway.svg";
 import iconRailway from "./assets/railway.svg";
 import iconStation from "./assets/station.svg";
 import iconBorders from "./assets/borders.svg";
@@ -159,6 +160,17 @@ function App() {
             disableRipple
           >
             <img src={iconMove} height={24} />
+          </ToggleButton>
+          <ToggleButton
+            value="newRailway"
+            size="small"
+            sx={{ padding: 0.2 }}
+            onClick={() =>
+              setAppState({ ...appState, editorMode: "newRailway" })
+            }
+            disableRipple
+          >
+            <img src={iconNewRailway} height={24} />
           </ToggleButton>
           <ToggleButton
             value="railway"

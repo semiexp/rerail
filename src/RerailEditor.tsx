@@ -17,7 +17,12 @@ import {
   StationListDialogRefType,
 } from "./Dialogs";
 
-export type EditorMode = "move" | "railway" | "station" | "borders";
+export type EditorMode =
+  | "move"
+  | "newRailway"
+  | "railway"
+  | "station"
+  | "borders";
 
 type RerailEditorProps = {
   topX: number;
@@ -34,6 +39,7 @@ type EditorPhase =
   | "none"
   | "viewport-moving"
   | "point-moving"
+  | "new-rail"
   | "station-linking"
   | "border-moving"
   | "border-adding";
@@ -110,6 +116,15 @@ export const RerailEditor = (props: RerailEditorProps) => {
         index: state.selectedIndex!,
         pointAfterMove: state.mouse!,
       };
+    } else if (state.editorPhase === "new-rail") {
+      // index should be IndexOnRailway
+      temporaryMovingPoint = {
+        index: {
+          index: railwayMap.getNumberOfPointsOnRailway(state.selectedRailId!),
+          inserting: true,
+        },
+        pointAfterMove: state.mouse!,
+      };
     }
     let temporaryMovingBorderPoint = undefined;
     if (state.editorPhase === "border-moving") {
@@ -165,12 +180,51 @@ export const RerailEditor = (props: RerailEditorProps) => {
     if (props.railwayMap === null) {
       return;
     }
+    const x = e.clientX - (e.target as HTMLCanvasElement).offsetLeft;
+    const y = e.clientY - (e.target as HTMLCanvasElement).offsetTop;
+
+    if (state.editorPhase === "new-rail") {
+      const numPoints = props.railwayMap!.getNumberOfPointsOnRailway(
+        state.selectedRailId!,
+      );
+
+      if (e.button === 2) {
+        // if there is only one point, remove the railway
+        if (numPoints === 1) {
+          // TODO: implement removeRailway
+          props.setRailwayMap(
+            props.railwayMap!.removeRailway(state.selectedRailId!),
+          );
+          setState({
+            ...state,
+            selectedRailId: null,
+            editorPhase: "none",
+          });
+        } else {
+          setState({
+            ...state,
+            editorPhase: "none",
+          });
+        }
+        return;
+      }
+
+      const logicalX = x * zoomLevels[props.zoomLevel] + props.topX;
+      const logicalY = y * zoomLevels[props.zoomLevel] + props.topY;
+      // add (logX, logY) to selected rail
+      props.setRailwayMap(
+        props.railwayMap!.insertRailwayPoint(
+          state.selectedRailId!,
+          numPoints,
+          logicalX,
+          logicalY,
+        ),
+      );
+      return;
+    }
     if (state.editorPhase !== "none") {
       return;
     }
-
-    const x = e.clientX - (e.target as HTMLCanvasElement).offsetLeft;
-    const y = e.clientY - (e.target as HTMLCanvasElement).offsetTop;
 
     const editorMode = props.editorMode;
     if (editorMode === "move" || e.shiftKey) {
@@ -181,6 +235,32 @@ export const RerailEditor = (props: RerailEditorProps) => {
         mouseYOnMouseDown: y,
         topXOnMouseDown: props.topX,
         topYOnMouseDown: props.topY,
+      });
+    } else if (editorMode === "newRailway") {
+      // get railway info using dialog, then add a new railway with point (x, y) and the info
+      const railwayInfo = await railwayDialogRef.current!.open({
+        name: "",
+        color: 0,
+        level: 0,
+      });
+      if (railwayInfo === undefined) {
+        return;
+      }
+      const logicalX = x * zoomLevels[props.zoomLevel] + props.topX;
+      const logicalY = y * zoomLevels[props.zoomLevel] + props.topY;
+      const newMapAndIndex = props.railwayMap!.newRailwayFromInfo(
+        railwayInfo,
+        logicalX,
+        logicalY,
+      );
+      const newMap = newMapAndIndex.getMap();
+      const newIndex = newMapAndIndex.getRailwayIndex();
+
+      props.setRailwayMap(newMap);
+      setState({
+        ...state,
+        editorPhase: "new-rail",
+        selectedRailId: newIndex,
       });
     } else if (editorMode === "railway") {
       if (state.selectedRailId === null) {
@@ -587,6 +667,14 @@ export const RerailEditor = (props: RerailEditorProps) => {
     stationListDialogRef.current!.open(stationList);
   };
 
+  const onDeleteRailway = (id: number) => {
+    const railwayMap = props.railwayMap;
+    if (railwayMap === null) {
+      return;
+    }
+    props.setRailwayMap(railwayMap.removeRailway(id));
+  };
+
   let cursor = "auto";
   if (state.editorPhase === "none") {
     if (props.editorMode === "borders") {
@@ -676,6 +764,7 @@ export const RerailEditor = (props: RerailEditorProps) => {
             onSelect={onSelectRailway}
             onOpenRailwayConfig={onOpenRailwayConfig}
             onOpenStationList={onOpenStationList}
+            onDeleteRailway={onDeleteRailway}
           />
         )}
       </div>

@@ -339,6 +339,25 @@ const STATION_THRESHOLD: [[i32; 4]; 4] = [
 const RAILWAY_THRESHOLD: [i32; 4] = [100, 200, 200, 10000];
 
 #[wasm_bindgen]
+pub struct RerailMapAndRailwayIndex {
+    map: Option<RerailMap>,
+    index: RailwayIndex,
+}
+
+#[wasm_bindgen]
+impl RerailMapAndRailwayIndex {
+    #[wasm_bindgen(js_name = getMap)]
+    pub fn get_map(&mut self) -> RerailMap {
+        self.map.take().unwrap()
+    }
+
+    #[wasm_bindgen(js_name = getRailwayIndex)]
+    pub fn get_railway_index(&self) -> RailwayIndex {
+        self.index
+    }
+}
+
+#[wasm_bindgen]
 impl RerailMap {
     pub fn new() -> RerailMap {
         RerailMap {
@@ -1060,6 +1079,48 @@ impl RerailMap {
             g: ((info.color >> 8) & 255) as u8,
             b: ((info.color >> 0) & 255) as u8,
         };
+        self
+    }
+
+    #[wasm_bindgen(js_name = newRailwayFromInfo)]
+    pub fn new_railway_from_info(
+        mut self,
+        info: RailwayInfo,
+        x: i32,
+        y: i32,
+    ) -> RerailMapAndRailwayIndex {
+        let railway = Railway {
+            name: info.name,
+            level: info.level,
+            color: Color {
+                r: ((info.color >> 16) & 255) as u8,
+                g: ((info.color >> 8) & 255) as u8,
+                b: ((info.color >> 0) & 255) as u8,
+            },
+            points: vec![RailwayPoint {
+                coord: Coord::new(x, y),
+                station: None,
+            }],
+        };
+        let index = self.railways.push(railway);
+        RerailMapAndRailwayIndex {
+            map: Some(self),
+            index,
+        }
+    }
+
+    #[wasm_bindgen(js_name = removeRailway)]
+    pub fn remove_railway(mut self, rail_id: RailwayIndex) -> RerailMap {
+        let railway = &self.railways[rail_id];
+        for pt in &railway.points {
+            if let Some(station_idx) = pt.station {
+                self.stations[station_idx].remove_railway(rail_id);
+                if self.stations[station_idx].railways.is_empty() {
+                    self.stations.delete(station_idx);
+                }
+            }
+        }
+        self.railways.delete(rail_id);
         self
     }
 

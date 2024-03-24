@@ -365,3 +365,64 @@ export const StationListDialog = forwardRef((_props, ref) => {
     </Dialog>
   );
 });
+
+// confirmation dialog with the same interface as the above
+// input: prompt text
+// output: true if OK, false if Cancel (as a Promise)
+export type ConfirmationDialogRefType = {
+  open: (prompt: string) => Promise<boolean>;
+};
+
+export const ConfirmationDialog = forwardRef((_props, ref) => {
+  const [state, setState] = useState({
+    open: false,
+    prompt: "",
+    callback: (_value: boolean) => {},
+  });
+
+  useImperativeHandle(
+    ref,
+    () => {
+      return {
+        open(p: string): Promise<boolean> {
+          return new Promise((resolve: (value: boolean) => void) => {
+            setState({
+              open: true,
+              prompt: p,
+              callback: resolve,
+            });
+          });
+        },
+      };
+    },
+    [],
+  );
+
+  const onClick = (ok: boolean) => {
+    state.callback(ok);
+    setState({ open: false, prompt: "", callback: (_value: boolean) => {} });
+  };
+
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      onClick(false);
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      onClick(true);
+    }
+  };
+
+  return (
+    <Dialog open={state.open} onKeyDown={onKeyDown}>
+      <DialogTitle>確認</DialogTitle>
+      <DialogContent>{state.prompt}</DialogContent>
+      <DialogActions>
+        <Button autoFocus onClick={() => onClick(false)}>
+          キャンセル
+        </Button>
+        <Button onClick={() => onClick(true)}>OK</Button>
+      </DialogActions>
+    </Dialog>
+  );
+});

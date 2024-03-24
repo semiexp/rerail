@@ -332,6 +332,11 @@ export const RerailEditor = (props: RerailEditorProps) => {
     const x = e.clientX - (e.target as HTMLCanvasElement).offsetLeft;
     const y = e.clientY - (e.target as HTMLCanvasElement).offsetTop;
 
+    setState((prevState) => ({
+      ...prevState,
+      mouse: { x, y },
+    }));
+
     if (state.editorPhase === "viewport-moving") {
       const zoom = zoomLevels[props.zoomLevel];
       const newTopX =
@@ -339,27 +344,11 @@ export const RerailEditor = (props: RerailEditorProps) => {
       const newTopY =
         state.topYOnMouseDown! + (state.mouseYOnMouseDown! - y) * zoom;
       props.setViewport(newTopX, newTopY, props.zoomLevel);
-    } else if (state.editorPhase === "point-moving") {
-      setState({
-        ...state,
-        mouse: { x, y },
-      });
     } else if (state.editorPhase === "station-linking") {
-      setState({
-        ...state,
+      setState((prevState) => ({
+        ...prevState,
         moved: true,
-        mouse: { x, y },
-      });
-    } else if (state.editorPhase === "border-moving") {
-      setState({
-        ...state,
-        mouse: { x, y },
-      });
-    } else if (state.editorPhase === "border-adding") {
-      setState({
-        ...state,
-        mouse: { x, y },
-      });
+      }));
     }
   };
 
@@ -401,7 +390,6 @@ export const RerailEditor = (props: RerailEditorProps) => {
         ...state,
         editorPhase: "none",
         selectedIndex: undefined,
-        mouse: undefined,
       });
     } else if (state.editorPhase === "station-linking") {
       if (state.moved) {
@@ -418,7 +406,6 @@ export const RerailEditor = (props: RerailEditorProps) => {
           ...state,
           editorPhase: "none",
           selectedIndex: undefined,
-          mouse: undefined,
           moved: undefined,
         });
       } else {
@@ -443,7 +430,6 @@ export const RerailEditor = (props: RerailEditorProps) => {
           ...state,
           editorPhase: "none",
           selectedIndex: undefined,
-          mouse: undefined,
           moved: undefined,
         });
       }
@@ -470,7 +456,6 @@ export const RerailEditor = (props: RerailEditorProps) => {
         ...state,
         editorPhase: "none",
         selectedBorderIndex: undefined,
-        mouse: undefined,
       });
     } else if (state.editorPhase === "border-adding") {
       const map = props.railwayMap!;
@@ -509,7 +494,6 @@ export const RerailEditor = (props: RerailEditorProps) => {
         ...state,
         editorPhase: "none",
         selectedBorderIndex: undefined,
-        mouse: undefined,
       });
     }
   };
@@ -607,8 +591,19 @@ export const RerailEditor = (props: RerailEditorProps) => {
     stationListDialogRef.current!.open(stationList);
   };
 
-  let cursor = "none";
-  if (state.editorPhase === "viewport-moving") {
+  let cursor = "auto";
+  if (state.editorPhase === "none") {
+    if (props.editorMode === "borders") {
+      const map = props.railwayMap;
+      const mouse = state.mouse;
+      if (map !== null && mouse !== undefined) {
+        const nearest = map.findNearestBorder(viewport, mouse.x, mouse.y, 10);
+        if (nearest !== undefined && "point" in nearest) {
+          cursor = "pointer";
+        }
+      }
+    }
+  } else if (state.editorPhase === "viewport-moving") {
     cursor = "move";
   } else if (state.editorPhase === "point-moving") {
     cursor = "pointer";
@@ -683,7 +678,7 @@ export const RerailEditor = (props: RerailEditorProps) => {
           onContextMenu={(e) => e.preventDefault()}
           style={{
             verticalAlign: "top",
-            ...(state.editorPhase !== "none" ? { cursor } : {}),
+            cursor,
           }}
         />
       </div>

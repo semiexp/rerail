@@ -75,6 +75,8 @@ const zoomLevels = [
   1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000,
 ];
 
+const distanceThreshold: number = 10;
+
 export const RerailEditor = (props: RerailEditorProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const entireContainerRef = useRef<HTMLDivElement>(null);
@@ -209,7 +211,7 @@ export const RerailEditor = (props: RerailEditorProps) => {
         state.selectedRailId!,
         x,
         y,
-        10,
+        distanceThreshold,
       );
       // if ctrl-key is pressed, extend the railway
       if (e.ctrlKey) {
@@ -259,7 +261,7 @@ export const RerailEditor = (props: RerailEditorProps) => {
         state.selectedRailId!,
         x,
         y,
-        10,
+        distanceThreshold,
       );
       if (nearest && !nearest.inserting) {
         const index = nearest.index;
@@ -289,7 +291,12 @@ export const RerailEditor = (props: RerailEditorProps) => {
       }
     }
     if (transitionToBorderMoving) {
-      const nearest = props.railwayMap?.findNearestBorder(viewport, x, y, 10);
+      const nearest = props.railwayMap?.findNearestBorder(
+        viewport,
+        x,
+        y,
+        distanceThreshold,
+      );
       if (nearest) {
         if (e.ctrlKey) {
           if ("point" in nearest) {
@@ -469,7 +476,7 @@ export const RerailEditor = (props: RerailEditorProps) => {
           viewport,
           state.mouse!.x,
           state.mouse!.y,
-          10,
+          distanceThreshold,
         );
         if (target !== undefined && "point" in target) {
           props.setRailwayMap(
@@ -598,7 +605,12 @@ export const RerailEditor = (props: RerailEditorProps) => {
       const map = props.railwayMap;
       const mouse = state.mouse;
       if (map !== null && mouse !== undefined) {
-        const nearest = map.findNearestBorder(viewport, mouse.x, mouse.y, 10);
+        const nearest = map.findNearestBorder(
+          viewport,
+          mouse.x,
+          mouse.y,
+          distanceThreshold,
+        );
         if (nearest !== undefined && "point" in nearest) {
           cursor = "pointer";
         }
